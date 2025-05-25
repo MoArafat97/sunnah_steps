@@ -31,7 +31,7 @@ export interface UserProfile {
     id: string;
     name: string;
     description: string;
-    icon: LucideIcon | React.ElementType; // This can remain as is, as it's used within server components
+    icon: string; // Name of the Lucide icon
     dateEarned: string; // YYYY-MM-DD
   }>;
 }

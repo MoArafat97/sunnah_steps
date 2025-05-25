@@ -1,5 +1,8 @@
 import type { Habit, UserProfile, HabitCategory } from '@/types';
-import { Smile, Moon, BookOpen, Sunrise, Sunset, Coffee, Gift, MessageSquare, Users, HelpingHand, Settings, ShoppingBag, HandHeart, Leaf, TreePalm, Droplets } from 'lucide-react';
+// Import Lucide icons explicitly if they are used by name in mockUserProfile badges
+// For this example, Moon and BookOpen are used. Add others if needed.
+import { Moon, BookOpen } from 'lucide-react'; 
+
 
 export const mockHabits: Habit[] = [
   {
@@ -117,14 +120,14 @@ export const mockUserProfile: UserProfile = {
       id: 'badge1',
       name: 'Early Riser',
       description: 'Completed Tahajjud for 7 consecutive days.',
-      icon: Moon, // This can remain as LucideIcon as it's used in server component
+      icon: 'Moon', // Stored as string name
       dateEarned: '2023-10-20',
     },
     {
       id: 'badge2',
       name: 'Consistent Reciter',
       description: 'Recited Quran daily for 30 days.',
-      icon: BookOpen, // This can remain as LucideIcon
+      icon: 'BookOpen', // Stored as string name
       dateEarned: '2023-11-15',
     }
   ],

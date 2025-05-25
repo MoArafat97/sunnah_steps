@@ -1,9 +1,17 @@
 import { mockUserProfile, mockHabits } from '@/lib/data';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { BarChart, TrendingUp, Award, CalendarDays } from 'lucide-react';
+import { BarChart, TrendingUp, Award, CalendarDays, Moon, BookOpen, type LucideIcon } from 'lucide-react'; // Added Moon, BookOpen
 import { WeeklyCompletionChartClient } from '@/components/progress/WeeklyCompletionChartClient';
-import { ActivityHeatmapClient } from '@/components/progress/ActivityHeatmapClient'; // Placeholder component
+import { ActivityHeatmapClient } from '@/components/progress/ActivityHeatmapClient';
+
+// Define an icon map for badge icons
+const badgeIconMap: { [key: string]: LucideIcon } = {
+  Moon,
+  BookOpen,
+  // Add other icons used in badges here as string keys
+};
+
 
 export default async function ProgressPage() {
   const user = mockUserProfile;
@@ -82,7 +90,7 @@ export default async function ProgressPage() {
           {user.badges.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {user.badges.map(badge => {
-                const BadgeIcon = badge.icon;
+                const BadgeIcon = badgeIconMap[badge.icon] || Award; // Fallback to Award icon if not found
                 return (
                   <Card key={badge.id} className="bg-accent/10 border-accent/50 p-4 flex flex-col items-center text-center">
                     <BadgeIcon className="h-12 w-12 text-accent mb-3" />
