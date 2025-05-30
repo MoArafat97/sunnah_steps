@@ -1,0 +1,20 @@
+{
+  "name": "sunnah-steps-root",
+  "version": "1.0.0",
+  "description": "Sunnah Steps - Islamic habit tracking app",
+  "scripts": {
+    "seed:sunnah": "cd functions && npm run seed:sunnah",
+    "build:functions": "cd functions && npm run build",
+    "serve:emulators": "firebase emulators:start",
+    "deploy:functions": "cd functions && npm run deploy",
+    "test:functions": "cd functions && npm test",
+    "install:functions": "cd functions && npm install",
+    "setup": "npm run install:functions && npm run build:functions"
+  },
+  "keywords": ["firebase", "flutter", "islamic", "habits", "sunnah"],
+  "author": "Sunnah Steps Team",
+  "license": "MIT",
+  "devDependencies": {
+    "firebase-tools": "^13.20.2"
+  }
+}
