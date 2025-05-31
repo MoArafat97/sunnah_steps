@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -40,51 +41,51 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCKyhU_vhIGOHO2jeVF0VUzK1ZYGVFvz9Q',
-    appId: '1:799717436277:web:4504dd3ac4fe7e979fc13c',
-    messagingSenderId: '799717436277',
-    projectId: 'sunnah-steps-82d64',
-    authDomain: 'sunnah-steps-82d64.firebaseapp.com',
-    storageBucket: 'sunnah-steps-82d64.firebasestorage.app',
-    measurementId: 'G-515ZW7FDP0',
+  static FirebaseOptions get web => FirebaseOptions(
+    apiKey: dotenv.env['FIREBASE_WEB_API_KEY']!,
+    appId: dotenv.env['FIREBASE_WEB_APP_ID']!,
+    messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID']!,
+    projectId: dotenv.env['FIREBASE_PROJECT_ID']!,
+    authDomain: dotenv.env['FIREBASE_AUTH_DOMAIN']!,
+    storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
+    measurementId: dotenv.env['FIREBASE_WEB_MEASUREMENT_ID']!,
   );
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyC6q1pqo4FfaOIq-dRJGJO3bv7sM7PsRm8',
-    appId: '1:799717436277:android:e82cb357d50c47329fc13c',
-    messagingSenderId: '799717436277',
-    projectId: 'sunnah-steps-82d64',
-    storageBucket: 'sunnah-steps-82d64.firebasestorage.app',
+  static FirebaseOptions get android => FirebaseOptions(
+    apiKey: dotenv.env['FIREBASE_ANDROID_API_KEY']!,
+    appId: dotenv.env['FIREBASE_ANDROID_APP_ID']!,
+    messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID']!,
+    projectId: dotenv.env['FIREBASE_PROJECT_ID']!,
+    storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
   );
 
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyDQe9KgFhYLzb-EPWoPzJPPwwCI9BQPtWo',
-    appId: '1:799717436277:ios:a43cf5b3dbb47c179fc13c',
-    messagingSenderId: '799717436277',
-    projectId: 'sunnah-steps-82d64',
-    storageBucket: 'sunnah-steps-82d64.firebasestorage.app',
-    iosClientId: '799717436277-5lep5cfjkr526kd2efva30bkqfmp2n6d.apps.googleusercontent.com',
-    iosBundleId: 'com.example.sunnahSteps',
+  static FirebaseOptions get ios => FirebaseOptions(
+    apiKey: dotenv.env['FIREBASE_IOS_API_KEY']!,
+    appId: dotenv.env['FIREBASE_IOS_APP_ID']!,
+    messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID']!,
+    projectId: dotenv.env['FIREBASE_PROJECT_ID']!,
+    storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
+    iosClientId: dotenv.env['FIREBASE_IOS_CLIENT_ID']!,
+    iosBundleId: dotenv.env['FIREBASE_IOS_BUNDLE_ID']!,
   );
 
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyDQe9KgFhYLzb-EPWoPzJPPwwCI9BQPtWo',
-    appId: '1:799717436277:ios:a43cf5b3dbb47c179fc13c',
-    messagingSenderId: '799717436277',
-    projectId: 'sunnah-steps-82d64',
-    storageBucket: 'sunnah-steps-82d64.firebasestorage.app',
-    iosClientId: '799717436277-5lep5cfjkr526kd2efva30bkqfmp2n6d.apps.googleusercontent.com',
-    iosBundleId: 'com.example.sunnahSteps',
+  static FirebaseOptions get macos => FirebaseOptions(
+    apiKey: dotenv.env['FIREBASE_IOS_API_KEY']!,
+    appId: dotenv.env['FIREBASE_IOS_APP_ID']!,
+    messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID']!,
+    projectId: dotenv.env['FIREBASE_PROJECT_ID']!,
+    storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
+    iosClientId: dotenv.env['FIREBASE_IOS_CLIENT_ID']!,
+    iosBundleId: dotenv.env['FIREBASE_IOS_BUNDLE_ID']!,
   );
 
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyCKyhU_vhIGOHO2jeVF0VUzK1ZYGVFvz9Q',
-    appId: '1:799717436277:web:fd7f87c5b00be0e59fc13c',
-    messagingSenderId: '799717436277',
-    projectId: 'sunnah-steps-82d64',
-    authDomain: 'sunnah-steps-82d64.firebaseapp.com',
-    storageBucket: 'sunnah-steps-82d64.firebasestorage.app',
-    measurementId: 'G-H7640QZCV3',
+  static FirebaseOptions get windows => FirebaseOptions(
+    apiKey: dotenv.env['FIREBASE_WINDOWS_API_KEY']!,
+    appId: dotenv.env['FIREBASE_WINDOWS_APP_ID']!,
+    messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID']!,
+    projectId: dotenv.env['FIREBASE_PROJECT_ID']!,
+    authDomain: dotenv.env['FIREBASE_AUTH_DOMAIN']!,
+    storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
+    measurementId: dotenv.env['FIREBASE_WINDOWS_MEASUREMENT_ID']!,
   );
 }

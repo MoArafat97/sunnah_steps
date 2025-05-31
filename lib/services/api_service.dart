@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_service.dart';
 
 class ApiService {
-  static const String _baseUrl = 'http://localhost:5001/your-project-id/us-central1/api';
+  static String get _baseUrl => dotenv.env['API_BASE_URL_LOCAL'] ?? dotenv.env['API_BASE_URL_PRODUCTION']!;
   
   /// Get authorization headers with Firebase token
   static Future<Map<String, String>> _getHeaders() async {

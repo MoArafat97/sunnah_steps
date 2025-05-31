@@ -1,6 +1,10 @@
 import * as admin from 'firebase-admin';
 import * as readline from 'readline';
+import * as dotenv from 'dotenv';
 import fetch from 'node-fetch';
+
+// Load environment variables
+dotenv.config();
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -51,7 +55,7 @@ async function createCustomToken(uid: string): Promise<string> {
 }
 
 async function exchangeCustomTokenForIdToken(customToken: string): Promise<string> {
-  const apiKey = 'AIzaSyCKyhU_vhIGOHO2jeVF0VUzK1ZYGVFvz9Q'; // From your firebase_options.dart
+  const apiKey = process.env.FIREBASE_WEB_API_KEY;
 
   try {
     const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${apiKey}`, {
@@ -131,7 +135,7 @@ async function main() {
       const password = await askQuestion('Enter your password: ');
 
       // Sign in with email/password to get ID token
-      const apiKey = 'AIzaSyCKyhU_vhIGOHO2jeVF0VUzK1ZYGVFvz9Q';
+      const apiKey = process.env.FIREBASE_WEB_API_KEY;
 
       const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`, {
         method: 'POST',
