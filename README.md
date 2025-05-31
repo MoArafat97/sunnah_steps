@@ -141,8 +141,8 @@ flutter run
 ## 📡 API Endpoints
 
 ### Base URL
-- **Local**: `http://localhost:5001/sunnah-steps-82d64/us-central1/api`
-- **Production**: `https://us-central1-sunnah-steps-82d64.cloudfunctions.net/api`
+- **Local**: `http://localhost:5001/YOUR-PROJECT-ID/us-central1/api`
+- **Production**: `https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net/api`
 
 ### REST Endpoints
 

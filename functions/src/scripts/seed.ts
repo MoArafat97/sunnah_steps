@@ -492,12 +492,13 @@ export const seedDatabaseFunction = functions
     }
 
     // Check for development bypass
+    // WARNING: This bypass should NEVER be enabled in production
     const isDevelopment = process.env.NODE_ENV === 'development' ||
                          process.env.FUNCTIONS_EMULATOR === 'true' ||
                          req.headers['x-development-bypass'] === 'true';
 
     if (isDevelopment) {
-      console.log('Development mode: Bypassing authentication for seeding');
+      console.log('⚠️  Development mode: Bypassing authentication for seeding (INSECURE)');
       await seedDatabase();
       res.json({
         success: true,

@@ -18,7 +18,7 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "https://us-central1-sunnah-steps-82d64.cloudfunctions.net/api",
+      "value": "https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net/api",
       "type": "string"
     },
     {

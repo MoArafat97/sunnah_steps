@@ -26,7 +26,8 @@ function askQuestion(question: string): Promise<string> {
 
 async function createTestUser(): Promise<{ email: string; password: string; uid: string }> {
   const email = `test-${Date.now()}@example.com`;
-  const password = 'testpassword123';
+  // Generate a more secure temporary password for test user
+  const password = `TempTest${Date.now()}!${Math.random().toString(36).substring(2)}`;
 
   try {
     const userRecord = await admin.auth().createUser({
@@ -84,7 +85,8 @@ async function exchangeCustomTokenForIdToken(customToken: string): Promise<strin
 }
 
 async function callSeedFunction(idToken: string): Promise<void> {
-  const functionUrl = 'https://us-central1-sunnah-steps-82d64.cloudfunctions.net/seedDatabase';
+  const projectId = process.env.FIREBASE_PROJECT_ID || 'your-project-id';
+  const functionUrl = `https://us-central1-${projectId}.cloudfunctions.net/seedDatabase`;
 
   try {
     const response = await fetch(functionUrl, {
@@ -103,7 +105,7 @@ async function callSeedFunction(idToken: string): Promise<void> {
     }
 
     console.log('✅ Database seeded successfully!');
-    console.log('Response:', JSON.stringify(data, null, 2));
+    console.log('Response status:', (data as any).success ? 'Success' : 'Failed');
   } catch (error) {
     console.error('❌ Error calling seed function:', error);
     throw error;
