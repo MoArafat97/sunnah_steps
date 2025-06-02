@@ -4,9 +4,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/checklist_item.dart';
-import '../models/sunnah_habit.dart';
 import '../data/sample_habits.dart';
-import '../services/api_service.dart';
 
 /// Service for managing the daily checklist state and persistence
 class ChecklistService {
@@ -176,18 +174,11 @@ class ChecklistService {
       items[itemIndex] = items[itemIndex].copyWith(isCompleted: isCompleted);
       await _saveChecklist(items);
 
+      // TODO: Replace with direct Firestore operations after removing Cloud Functions
       // Optionally log completion to API
       if (isCompleted) {
-        try {
-          await ApiService.createCompletion(
-            habitId: itemId,
-            source: 'checklist',
-            note: 'Completed via Today\'s Checklist',
-          );
-        } catch (e) {
-          // Silently fail - local state is more important
-          print('Failed to log completion to API: $e');
-        }
+        // API calls temporarily disabled - will be replaced with direct Firestore operations
+        print('Habit completion logged locally: $itemId');
       }
     }
   }

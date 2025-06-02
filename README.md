@@ -42,20 +42,10 @@ This release establishes the foundational data layer and API infrastructure.
 
 ## 🏗 Architecture
 
-### Backend (Firebase Cloud Functions)
-```
-functions/
-├── src/
-│   ├── models/           # TypeScript interfaces
-│   ├── routes/           # REST API endpoints
-│   ├── graphql/          # GraphQL server
-│   ├── middleware/       # Auth & validation
-│   ├── scripts/          # Seed data script
-│   ├── triggers/         # Auth triggers
-│   └── test/            # Unit tests
-├── package.json
-└── tsconfig.json
-```
+### Backend (Firebase Services)
+- **Firebase Auth**: User authentication and authorization
+- **Cloud Firestore**: NoSQL database for habits, bundles, and user data
+- **Direct SDK Access**: Flutter app communicates directly with Firebase services
 
 ### Frontend (Flutter)
 ```
@@ -70,7 +60,6 @@ lib/
 ## 🔧 Setup & Installation
 
 ### Prerequisites
-- Node.js 18+
 - Firebase CLI
 - Flutter SDK
 - Firebase project
@@ -128,7 +117,6 @@ npm run serve:emulators
 ```
 
 This starts:
-- **Functions**: http://localhost:5001
 - **Firestore**: http://localhost:8080
 - **Auth**: http://localhost:9099
 - **UI**: http://localhost:4000
@@ -138,48 +126,27 @@ This starts:
 flutter run
 ```
 
-## 📡 API Endpoints
+## 🗄️ Data Access
 
-### Base URL
-- **Local**: `http://localhost:5001/YOUR-PROJECT-ID/us-central1/api`
-- **Production**: `https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net/api`
+### Firebase Services
+The app uses direct Firebase SDK access for all data operations:
 
-### REST Endpoints
+#### Firestore Collections
+- **habits**: Sunnah habits with metadata and Islamic references
+- **bundles**: Curated habit collections (Morning, Evening, etc.)
+- **users**: User profiles and preferences
+- **completion_log**: User habit completion tracking
 
-#### Habits
-- `GET /habits` - List habits with filtering
-- `GET /habits/:id` - Get specific habit
-- `GET /habits/search/:query` - Search habits
+#### Authentication
+- **Firebase Auth**: Google Sign-In and email/password authentication
+- **Security Rules**: Firestore rules ensure users can only access their own data
 
-#### Bundles
-- `GET /bundles` - List habit bundles
-- `GET /bundles/:id` - Get specific bundle
-- `GET /bundles/:id/habits` - Get habits in bundle
+## 🔐 Security
 
-#### Users
-- `POST /users` - Create user profile
-- `GET /users/:userId` - Get user profile
-- `PUT /users/:userId` - Update user profile
-
-#### Completions
-- `POST /completions` - Log habit completion ⭐
-- `GET /completions/:userId` - Get completion history
-- `GET /completions/:userId/stats` - Get completion statistics
-
-### GraphQL Endpoint
-- `POST /graphql` - GraphQL queries and mutations
-- **Playground**: Available in development mode
-
-## 🔐 Authentication
-
-All endpoints require Firebase Auth token in header:
-```
-Authorization: Bearer <firebase-id-token>
-```
-
-### Security Rules
+### Firestore Security Rules
 - **Habits & Bundles**: Read-only for authenticated users
-- **Users & Completions**: Read/write only for resource owner or coach role
+- **Users & Completions**: Read/write only for resource owner
+- **Environment Variables**: All sensitive data stored in `.env` files
 
 ## 🧪 Testing & QA
 
