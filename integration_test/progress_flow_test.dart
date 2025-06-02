@@ -96,7 +96,7 @@ void main() {
       app.main();
       await tester.pumpAndSettle();
 
-      await _navigateTodashboard(tester);
+      await _navigateToDashboard(tester);
 
       // Complete multiple habits
       final habitCheckboxes = find.byIcon(Icons.radio_button_unchecked);
@@ -228,36 +228,19 @@ Future<void> _navigateToProgress(WidgetTester tester) async {
 }
 
 /// Helper function to navigate to dashboard (simplified)
-Future<void> _navigateToProgress(WidgetTester tester) async {
+Future<void> _navigateToDashboard(WidgetTester tester) async {
   // This is a simplified version - in a real app you'd navigate through the full onboarding
   // For testing purposes, we'll assume we can reach the dashboard directly
-  
-  // Look for navigation elements
-  final drawerButton = find.byIcon(Icons.menu);
-  if (drawerButton.evaluate().isNotEmpty) {
-    await tester.tap(drawerButton);
-    await tester.pumpAndSettle();
-    
-    final progressMenuItem = find.text('Progress');
-    if (progressMenuItem.evaluate().isNotEmpty) {
-      await tester.tap(progressMenuItem);
-      await tester.pumpAndSettle();
-    }
-  }
-}
 
-/// Helper function to navigate to dashboard
-Future<void> _navigateToProgress(WidgetTester tester) async {
-  // Skip onboarding if possible and go directly to dashboard
-  // This would need to be implemented based on your app's navigation structure
-  
-  // For now, assume we can find the dashboard directly
+  // Look for dashboard elements or skip onboarding
   final dashboardElements = find.text('Sunnah Steps');
   if (dashboardElements.evaluate().isNotEmpty) {
     // We're likely on the dashboard already
     return;
   }
-  
+
   // Otherwise, try to navigate through the app structure
   // This would be customized based on your specific app flow
 }
+
+
