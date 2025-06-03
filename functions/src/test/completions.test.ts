@@ -17,8 +17,11 @@ const mockAuth = {
 };
 
 // Mock Firebase Admin before importing the router
+const firestoreFn = jest.fn(() => mockFirestore);
+(firestoreFn as any).Timestamp = mockFirestore.Timestamp;
+
 jest.mock('firebase-admin', () => ({
-  firestore: jest.fn(() => mockFirestore),
+  firestore: firestoreFn,
   auth: jest.fn(() => mockAuth),
   initializeApp: jest.fn(),
   apps: []
@@ -185,9 +188,20 @@ describe('POST /api/completions', () => {
     const mockHabitDocRef = { get: jest.fn().mockResolvedValue(mockHabitDoc) };
     const mockHabitsCollection = { doc: jest.fn().mockReturnValue(mockHabitDocRef) };
 
+    // Recreate user mocks to preserve auth behaviour
+    const mockUserDoc = { exists: true, data: () => ({ role: 'user' }) };
+    const mockAdd = jest.fn().mockResolvedValue({ id: 'completion-123' });
+    const mockCompletionCollection = { add: mockAdd };
+    const mockUserDocRef = {
+      get: jest.fn().mockResolvedValue(mockUserDoc),
+      collection: jest.fn().mockReturnValue(mockCompletionCollection)
+    };
+    const mockUsersCollection = { doc: jest.fn().mockReturnValue(mockUserDocRef) };
+
     mockFirestore.collection.mockImplementation((collectionName: string) => {
       if (collectionName === 'habits') return mockHabitsCollection;
-      return mockFirestore.collection.mockReturnValue({});
+      if (collectionName === 'users') return mockUsersCollection;
+      return {};
     });
 
     const completionData = {
