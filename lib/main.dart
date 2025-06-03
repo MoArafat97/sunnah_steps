@@ -17,6 +17,8 @@ import 'pages/onboarding/high_frequency_screen.dart';
 import 'pages/onboarding/gender_question_screen.dart';
 import 'pages/onboarding/loading_screen.dart';
 import 'pages/onboarding/rich_comparison_screen.dart';
+import 'pages/inbox_page.dart';
+import 'pages/checklist_welcome_page.dart';
 import 'services/firebase_service.dart';
 
 void main() async {
@@ -97,12 +99,20 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RichComparisonScreen(),
     ),
     GoRoute(
+      path: '/checklist-welcome',
+      builder: (context, state) => const ChecklistWelcomePage(),
+    ),
+    GoRoute(
       path: '/dashboard',
       builder: (context, state) => const DashboardPage(),
     ),
     GoRoute(
       path: '/progress',
       builder: (context, state) => const ProgressPage(),
+    ),
+    GoRoute(
+      path: '/inbox',
+      builder: (context, state) => const InboxPage(),
     ),
   ],
 );

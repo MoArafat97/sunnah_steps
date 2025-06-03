@@ -8,11 +8,15 @@ import 'habit_detail_page.dart';
 import '../widgets/today_checklist_overlay.dart';
 import '../services/checklist_service.dart';
 import '../services/progress_service.dart';
-import '../services/debug_service.dart';
 import '../models/streak_data.dart';
+import '../services/sunnah_coaching_service.dart';
+import '../pages/inbox_page.dart';
+import '../widgets/send_sunnah_dialog.dart';
 
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({Key? key}) : super(key: key);
+  const DashboardPage({Key? key, this.initialChecklistOverlayVisible = false}) : super(key: key);
+
+  final bool initialChecklistOverlayVisible;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -28,7 +32,10 @@ class _DashboardPageState extends State<DashboardPage> {
   // Progress tracking
   StreakData? _streakData;
   int _todayCompletions = 0;
-  bool _isDebugMode = false;
+  int _pendingRecommendations = 0;
+
+  // Checklist overlay visibility
+  late bool _showChecklist = widget.initialChecklistOverlayVisible;
 
   // Compute progress
   int get totalDaily => _dailyHabits.length;
@@ -46,8 +53,8 @@ class _DashboardPageState extends State<DashboardPage> {
     _loadSyncedHabits();
     // Load progress data
     _loadProgressData();
-    // Check debug mode
-    _checkDebugMode();
+    // Load pending recommendations count
+    _loadPendingRecommendations();
 
     // Note: Checklist is now only shown from onboarding flow, not automatically on dashboard
     // Users can still access it manually from the drawer if needed
@@ -102,10 +109,18 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  /// Check if debug mode is enabled
-  Future<void> _checkDebugMode() async {
-    final isDebug = await DebugService.instance.isDebugModeEnabled();
-    setState(() => _isDebugMode = isDebug);
+  // Debug mode functionality removed for production
+
+  /// Load pending recommendations count
+  Future<void> _loadPendingRecommendations() async {
+    try {
+      final count = await SunnahCoachingService.instance.getPendingRecommendationsCount();
+      setState(() {
+        _pendingRecommendations = count;
+      });
+    } catch (e) {
+      print('Error loading pending recommendations: $e');
+    }
   }
 
   /// Handle habit completion with progress tracking
@@ -153,26 +168,33 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: GestureDetector(
-          onLongPress: _handleLogoLongPress,
-          child: const Text("Sunnah Steps"),
-        ),
-        actions: [
-          if (_isDebugMode)
-            IconButton(
-              icon: const Icon(Icons.bug_report, color: Colors.orange),
-              onPressed: _showDebugPanel,
-            ),
-        ],
-      ),
-      drawer: _buildDrawer(context),
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text("Sunnah Steps"),
+            actions: [
+              // Debug panel removed for production
+            ],
+          ),
+          drawer: _buildDrawer(context),
 
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: _buildBody(),
-      ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: _buildBody(),
+          ),
+        ),
+        if (_showChecklist)
+          TodayChecklistOverlay(
+            onComplete: () {
+              setState(() => _showChecklist = false);
+              _loadSyncedHabits();
+            },
+            onSkip: () {
+              setState(() => _showChecklist = false);
+            },
+          ),
+      ],
     );
   }
 
@@ -201,6 +223,40 @@ Widget _buildDrawer(BuildContext context) => Drawer(
         onTap: () => _showTodaysChecklist(context),
       ),
       ListTile(
+        leading: Stack(
+          children: [
+            const Icon(Icons.inbox),
+            if (_pendingRecommendations > 0)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Text(
+                    '$_pendingRecommendations',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        title: const Text('Sunnah Inbox'),
+        onTap: () => _openInbox(context),
+      ),
+      ListTile(
         leading: const Icon(Icons.show_chart),
         title: const Text('Progress'),
         onTap: () {
@@ -209,32 +265,18 @@ Widget _buildDrawer(BuildContext context) => Drawer(
         },
       ),
       const Divider(),
-      // Debug options
+      // User Settings
       ListTile(
-        leading: const Icon(Icons.refresh, color: Colors.orange),
-        title: const Text('Reset Checklist (Debug)', style: TextStyle(color: Colors.orange)),
-        onTap: () async {
-          Navigator.pop(context);
-          await ChecklistService.instance.forceResetChecklistState();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Checklist state reset - it will show again')),
-          );
-        },
+        leading: const Icon(Icons.refresh, color: Colors.blue),
+        title: const Text('Refresh Checklist'),
+        subtitle: const Text('Reset today\'s checklist to show again'),
+        onTap: () => _showRefreshChecklistDialog(context),
       ),
       ListTile(
-        leading: const Icon(Icons.clear_all, color: Colors.red),
-        title: const Text('Clear All Data (Debug)', style: TextStyle(color: Colors.red)),
-        onTap: () async {
-          Navigator.pop(context);
-          await ChecklistService.instance.clearAllData();
-          setState(() {
-            _dailyHabits.clear();
-            _weeklyHabits.clear();
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('All checklist data cleared')),
-          );
-        },
+        leading: const Icon(Icons.restart_alt, color: Colors.orange),
+        title: const Text('Reset My Progress'),
+        subtitle: const Text('Clear all habit progress and start fresh'),
+        onTap: () => _showResetProgressDialog(context),
       ),
     ],
   ),
@@ -273,6 +315,18 @@ Widget _buildDrawer(BuildContext context) => Drawer(
         // Checklist skipped, stay on dashboard
       },
     );
+  }
+
+  Future<void> _openInbox(BuildContext context) async {
+    Navigator.pop(context); // Close drawer first
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const InboxPage()),
+    );
+
+    // Reload pending recommendations count when returning
+    _loadPendingRecommendations();
   }
 
   Widget _buildBody() {
@@ -371,6 +425,19 @@ Widget _buildChecklist(String title, List<HabitItem> items) {
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // SEND TO FRIEND button
+                IconButton(
+                  icon: const Icon(Icons.share, color: Colors.teal),
+                  onPressed: () async {
+                    await showSendSunnahDialog(
+                      context,
+                      habitId: habit.name,
+                      habitTitle: habit.name,
+                    );
+                  },
+                  tooltip: 'Send to Friend',
+                ),
+
                 // INFO button
                 IconButton(
                   icon: const Icon(Icons.info_outline, color: Colors.blueGrey),
@@ -490,105 +557,125 @@ Widget _buildChecklist(String title, List<HabitItem> items) {
     );
   }
 
-  /// Handle long press on app logo to toggle debug mode
-  void _handleLogoLongPress() {
-    showDialog(
+  /// Show confirmation dialog for refreshing checklist
+  Future<void> _showRefreshChecklistDialog(BuildContext context) async {
+    Navigator.pop(context); // Close drawer first
+
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Debug Mode'),
-        content: Text(_isDebugMode
-            ? 'Debug mode is currently enabled. Disable it?'
-            : 'Enable debug mode for QA testing?'),
+        title: const Text('Refresh Checklist'),
+        content: const Text(
+          'This will reset today\'s checklist so it appears again. '
+          'Your progress and completed habits will not be affected.\n\n'
+          'Continue?'
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () async {
-              await DebugService.instance.toggleDebugMode();
-              await _checkDebugMode();
-              Navigator.pop(context);
-
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(_isDebugMode
-                      ? 'Debug mode enabled'
-                      : 'Debug mode disabled'),
-                ),
-              );
-            },
-            child: Text(_isDebugMode ? 'Disable' : 'Enable'),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Refresh'),
           ),
         ],
       ),
     );
+
+    if (confirmed == true) {
+      await ChecklistService.instance.forceResetChecklistState();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Checklist refreshed! It will show again when needed.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
   }
 
-  /// Show debug panel with QA options
-  void _showDebugPanel() {
-    showModalBottomSheet(
+  /// Show confirmation dialog for resetting all progress
+  Future<void> _showResetProgressDialog(BuildContext context) async {
+    Navigator.pop(context); // Close drawer first
+
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'QA Debug Panel',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-
-            ListTile(
-              leading: const Icon(Icons.play_arrow, color: Colors.green),
-              title: const Text('Enable Test-Drive Mode'),
-              subtitle: const Text('Load dummy data for QA testing'),
-              onTap: () async {
-                await DebugService.instance.enableTestDriveMode();
-                Navigator.pop(context);
-                await _loadProgressData();
-                await _loadSyncedHabits();
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Test-drive mode enabled')),
-                );
-              },
-            ),
-
-            ListTile(
-              leading: const Icon(Icons.refresh, color: Colors.orange),
-              title: const Text('Reset All Data'),
-              subtitle: const Text('Clear progress and checklist data'),
-              onTap: () async {
-                await DebugService.instance.disableTestDriveMode();
-                Navigator.pop(context);
-                await _loadProgressData();
-                await _loadSyncedHabits();
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('All data reset')),
-                );
-              },
-            ),
-
-            ListTile(
-              leading: const Icon(Icons.bug_report, color: Colors.red),
-              title: const Text('Disable Debug Mode'),
-              onTap: () async {
-                await DebugService.instance.toggleDebugMode();
-                Navigator.pop(context);
-                await _checkDebugMode();
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Debug mode disabled')),
-                );
-              },
-            ),
-          ],
+      builder: (context) => AlertDialog(
+        title: const Text('Reset All Progress'),
+        content: const Text(
+          '⚠️ WARNING: This will permanently delete:\n\n'
+          '• All your habit progress\n'
+          '• Your streak data\n'
+          '• Completed habit history\n'
+          '• Today\'s checklist selections\n\n'
+          'Your received Sunnah recommendations in the Inbox will NOT be affected.\n\n'
+          'This action cannot be undone. Are you sure?'
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
+
+    if (confirmed == true) {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Resetting progress...'),
+            ],
+          ),
+        ),
+      );
+
+      try {
+        // Clear all progress data but preserve inbox
+        await ChecklistService.instance.clearAllData();
+        await ProgressService.instance.resetAllProgress();
+
+        // Reset UI state
+        setState(() {
+          _dailyHabits.clear();
+          _weeklyHabits.clear();
+          _streakData = null;
+          _todayCompletions = 0;
+        });
+
+        // Close loading dialog
+        Navigator.pop(context);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🔄 All progress has been reset. Start your journey fresh!'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } catch (e) {
+        // Close loading dialog
+        Navigator.pop(context);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Error resetting progress: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
 }

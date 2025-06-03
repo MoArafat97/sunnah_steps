@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import '../../widgets/today_checklist_overlay.dart';
 import '../../services/checklist_service.dart';
+import '../../services/user_flags_service.dart';
+import '../checklist_welcome_page.dart';
+import '../dashboard_page.dart';
 
 class MicroLessonScreen extends StatefulWidget {
   const MicroLessonScreen({super.key});
@@ -87,6 +88,7 @@ class _MicroLessonScreenState extends State<MicroLessonScreen>
   }
 
   void _nextPage() {
+    print('MicroLessonScreen._nextPage: currentPage=$_currentPage, totalPages=$_totalPages');
     if (_currentPage < _totalPages - 1) {
       _currentPage++;
       _pageController.nextPage(
@@ -101,11 +103,13 @@ class _MicroLessonScreenState extends State<MicroLessonScreen>
       _slideController.forward();
     } else {
       // Complete onboarding and show checklist
+      print('MicroLessonScreen._nextPage: reached last page, completing onboarding');
       _completeOnboarding();
     }
   }
 
   void _skipToQuestions() {
+    print('MicroLessonScreen._skipToQuestions: skip button pressed');
     _completeOnboarding();
   }
 
@@ -115,38 +119,26 @@ class _MicroLessonScreenState extends State<MicroLessonScreen>
     // Mark onboarding as completed
     await ChecklistService.instance.markOnboardingCompleted();
 
-    // Check if checklist should be shown after onboarding completion
-    final shouldShow = await ChecklistService.instance.shouldShowChecklistAfterOnboarding();
-    print('MicroLessonScreen._completeOnboarding: shouldShow=$shouldShow');
+    // Only show the welcome prompt if brand-new.
+    final seen = await UserFlagsService.hasSeenChecklistPrompt();
+    print('MicroLessonScreen._completeOnboarding: hasSeenChecklistPrompt=$seen');
 
-    if (shouldShow && mounted) {
-      print('MicroLessonScreen._completeOnboarding: showing checklist overlay');
-      // Show the checklist overlay
-      await showTodayChecklistOverlay(
-        context,
-        onComplete: () async {
-          print('MicroLessonScreen._completeOnboarding: checklist completed, marking post-onboarding as shown');
-          // Mark post-onboarding checklist as shown (separate from daily logic)
-          await ChecklistService.instance.markPostOnboardingChecklistShown();
-          if (mounted) {
-            context.go('/dashboard');
-          }
-        },
-        onSkip: () async {
-          print('MicroLessonScreen._completeOnboarding: checklist skipped, marking post-onboarding as shown');
-          // Mark post-onboarding checklist as shown (separate from daily logic)
-          await ChecklistService.instance.markPostOnboardingChecklistShown();
-          if (mounted) {
-            context.go('/dashboard');
-          }
-        },
+    if (mounted) {
+      print('MicroLessonScreen._completeOnboarding: widget is mounted, navigating...');
+      if (seen) {
+        print('MicroLessonScreen._completeOnboarding: navigating to DashboardPage');
+      } else {
+        print('MicroLessonScreen._completeOnboarding: navigating to ChecklistWelcomePage');
+      }
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) =>
+              seen ? const DashboardPage() : const ChecklistWelcomePage(),
+        ),
       );
     } else {
-      print('MicroLessonScreen._completeOnboarding: checklist not needed, going directly to dashboard');
-      // Go directly to dashboard
-      if (mounted) {
-        context.go('/dashboard');
-      }
+      print('MicroLessonScreen._completeOnboarding: widget not mounted, skipping navigation');
     }
   }
 

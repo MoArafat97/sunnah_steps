@@ -6,16 +6,19 @@ import 'dart:ui';
 import '../models/checklist_item.dart';
 import '../services/checklist_service.dart';
 import '../theme/app_theme.dart';
+import 'checklist_item_card.dart';
 
 /// Rich, animated checklist overlay that appears post-onboarding
 class TodayChecklistOverlay extends StatefulWidget {
   final VoidCallback onComplete;
   final VoidCallback onSkip;
+  final List<ChecklistItem>? testItems; // For testing purposes
 
   const TodayChecklistOverlay({
     super.key,
     required this.onComplete,
     required this.onSkip,
+    this.testItems,
   });
 
   @override
@@ -77,9 +80,9 @@ class _TodayChecklistOverlayState extends State<TodayChecklistOverlay>
 
   Future<void> _loadChecklist() async {
     try {
-      final items = await ChecklistService.instance.getTodaysChecklist();
+      final items = widget.testItems ?? await ChecklistService.instance.getTodaysChecklist();
       setState(() {
-        _checklistItems = items;
+        _checklistItems = items.take(3).toList(); // always show three
         _isLoading = false;
       });
       _startAnimations();
@@ -142,20 +145,28 @@ class _TodayChecklistOverlayState extends State<TodayChecklistOverlay>
                 ),
               ),
 
-              // Main content
-              Center(
-                child: AnimatedBuilder(
-                  animation: _cardController,
-                  builder: (context, child) {
-                    return Transform.translate(
-                      offset: Offset(0, 50 * _cardSlideAnimation.value),
-                      child: Opacity(
-                        opacity: _cardFadeAnimation.value,
-                        child: _buildChecklistCard(),
+              // Main content with top spacing
+              // Keep the overlay about 15% from the top, not 25%.
+              Column(
+                children: [
+                  SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+                  Expanded(
+                    child: Center(
+                      child: AnimatedBuilder(
+                        animation: _cardController,
+                        builder: (context, child) {
+                          return Transform.translate(
+                            offset: Offset(0, 50 * _cardSlideAnimation.value),
+                            child: Opacity(
+                              opacity: _cardFadeAnimation.value,
+                              child: _buildChecklistCard(),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -165,8 +176,10 @@ class _TodayChecklistOverlayState extends State<TodayChecklistOverlay>
   }
 
   Widget _buildChecklistCard() {
+    // Margin now only 24 px; we'll add *internal* space in step 3.
     return Container(
-      margin: const EdgeInsets.fromLTRB(24, 60, 24, 40), // Increased top margin for better spacing
+      key: const ValueKey('ChecklistCard'),
+      margin: const EdgeInsets.fromLTRB(24, 24, 24, 40),
       constraints: BoxConstraints(
         maxWidth: 400,
         maxHeight: MediaQuery.of(context).size.height * 0.8, // Limit to 80% of screen height
@@ -180,6 +193,7 @@ class _TodayChecklistOverlayState extends State<TodayChecklistOverlay>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const SizedBox(height: 32),        // 3️⃣ internal white-space
           _buildHeader(),
           if (_isLoading)
             _buildLoadingState()
@@ -278,7 +292,12 @@ class _TodayChecklistOverlayState extends State<TodayChecklistOverlay>
                     offset: Offset(0, 20 * (1 - itemAnimation.value)),
                     child: Opacity(
                       opacity: itemAnimation.value,
-                      child: _buildChecklistItem(item, index),
+                      child: ChecklistItemCard(
+                        item: item,
+                        index: index,
+                        totalItems: _checklistItems.length,
+                        onTap: () => _toggleItemCompletion(item),
+                      ),
                     ),
                   );
                 },
@@ -290,105 +309,7 @@ class _TodayChecklistOverlayState extends State<TodayChecklistOverlay>
     );
   }
 
-  Widget _buildChecklistItem(ChecklistItem item, int index) {
-    return Container(
-      margin: EdgeInsets.only(bottom: index < _checklistItems.length - 1 ? 16 : 0),
-      decoration: BoxDecoration(
-        color: item.isCompleted ? AppTheme.primaryTeal.withOpacity(0.1) : AppTheme.cardBackground,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: item.isCompleted ? AppTheme.primaryTeal : AppTheme.goldenAccent.withOpacity(0.3),
-          width: 1.5,
-        ),
-        boxShadow: AppTheme.cardShadow,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _toggleItemCompletion(item),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Custom animated checkbox
-                _buildAnimatedCheckbox(item.isCompleted),
-                const SizedBox(width: 16),
 
-                // Content
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title with priority emoji
-                      Row(
-                        children: [
-                          Text(
-                            item.priorityEmoji,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              item.title,
-                              style: AppTheme.lightTheme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                decoration: item.isCompleted ? TextDecoration.lineThrough : null,
-                                color: item.isCompleted
-                                    ? AppTheme.secondaryText
-                                    : AppTheme.primaryText,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Benefits
-                      Text(
-                        item.benefits,
-                        style: AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
-                          color: item.isCompleted
-                              ? AppTheme.secondaryText
-                              : AppTheme.secondaryText,
-                          height: 1.3,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnimatedCheckbox(bool isChecked) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: 24,
-      height: 24,
-      decoration: BoxDecoration(
-        color: isChecked ? AppTheme.primaryTeal : Colors.transparent,
-        border: Border.all(
-          color: isChecked ? AppTheme.primaryTeal : AppTheme.secondaryText,
-          width: 2,
-        ),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: isChecked
-          ? const Icon(
-              Icons.check,
-              color: Colors.white,
-              size: 16,
-            )
-          : null,
-    );
-  }
 
   Widget _buildActionButtons() {
     return Container(
