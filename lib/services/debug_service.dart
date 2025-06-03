@@ -28,7 +28,8 @@ class DebugService {
   /// Check if debug mode is enabled
   Future<bool> isDebugModeEnabled() async {
     await initialize();
-    return _prefs!.getBool(_debugModeKey) ?? false;
+    // Always return false to disable debug mode in production
+    return false;
   }
 
   /// Toggle debug mode

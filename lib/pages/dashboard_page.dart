@@ -1,6 +1,7 @@
 // lib/pages/dashboard_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../models/habit_item.dart';
 import '../data/sample_habits.dart';
 import 'habit_library_page.dart';
@@ -8,10 +9,14 @@ import 'habit_detail_page.dart';
 import '../widgets/today_checklist_overlay.dart';
 import '../services/checklist_service.dart';
 import '../services/progress_service.dart';
+import '../services/firebase_service.dart';
+
 import '../models/streak_data.dart';
 import '../services/sunnah_coaching_service.dart';
+import '../services/habit_scheduling_service.dart';
 import '../pages/inbox_page.dart';
 import '../widgets/send_sunnah_dialog.dart';
+
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({Key? key, this.initialChecklistOverlayVisible = false}) : super(key: key);
@@ -55,43 +60,67 @@ class _DashboardPageState extends State<DashboardPage> {
     _loadProgressData();
     // Load pending recommendations count
     _loadPendingRecommendations();
+    // NEW - Load scheduled habits
+    _loadScheduledHabits();
 
     // Note: Checklist is now only shown from onboarding flow, not automatically on dashboard
     // Users can still access it manually from the drawer if needed
   }
 
-  /// Load habits that were synced from the checklist
+  /// Load habits from Firestore (primary) and local storage (fallback)
   Future<void> _loadSyncedHabits() async {
-    print('Dashboard._loadSyncedHabits: loading synced habits');
-    final syncedHabits = await ChecklistService.instance.getSyncedDashboardHabits();
+    print('Dashboard._loadSyncedHabits: loading user habits');
 
-    print('Dashboard._loadSyncedHabits: received daily=${syncedHabits['daily']?.length}, weekly=${syncedHabits['weekly']?.length}');
+    try {
+      // Try to load from Firestore first
+      final firestoreHabits = await FirebaseService.getUserHabits();
 
-    setState(() {
-      // Merge synced habits with existing ones
-      final existingDailyNames = _dailyHabits.map((h) => h.name).toSet();
-      final existingWeeklyNames = _weeklyHabits.map((h) => h.name).toSet();
-
-      print('Dashboard._loadSyncedHabits: existing daily=${existingDailyNames.length}, weekly=${existingWeeklyNames.length}');
-
-      // Add new daily habits from checklist
-      for (final habitName in syncedHabits['daily']!) {
-        if (!existingDailyNames.contains(habitName)) {
-          print('Dashboard._loadSyncedHabits: adding daily habit "$habitName"');
-          _dailyHabits.add(HabitItem(name: habitName, completed: false));
-        }
+      // If user has habits in Firestore, use those
+      if (firestoreHabits['daily']!.isNotEmpty || firestoreHabits['weekly']!.isNotEmpty) {
+        print('Dashboard._loadSyncedHabits: loaded from Firestore - daily=${firestoreHabits['daily']?.length}, weekly=${firestoreHabits['weekly']?.length}');
+        setState(() {
+          _dailyHabits = firestoreHabits['daily']!.map((name) => HabitItem(name: name, completed: false)).toList();
+          _weeklyHabits = firestoreHabits['weekly']!.map((name) => HabitItem(name: name, completed: false)).toList();
+        });
+        return;
       }
 
-      // Add new weekly habits from checklist
-      for (final habitName in syncedHabits['weekly']!) {
-        if (!existingWeeklyNames.contains(habitName)) {
-          print('Dashboard._loadSyncedHabits: adding weekly habit "$habitName"');
-          _weeklyHabits.add(HabitItem(name: habitName, completed: false));
-        }
+      // Fallback to local storage for backward compatibility
+      final localHabits = await ChecklistService.instance.getSyncedDashboardHabits();
+      print('Dashboard._loadSyncedHabits: loaded from local storage - daily=${localHabits['daily']?.length}, weekly=${localHabits['weekly']?.length}');
+
+      setState(() {
+        _dailyHabits = localHabits['daily']!.map((name) => HabitItem(name: name, completed: false)).toList();
+        _weeklyHabits = localHabits['weekly']!.map((name) => HabitItem(name: name, completed: false)).toList();
+      });
+
+      // If we loaded from local storage, sync to Firestore
+      if (localHabits['daily']!.isNotEmpty || localHabits['weekly']!.isNotEmpty) {
+        await _syncHabitsToFirestore();
       }
 
-      print('Dashboard._loadSyncedHabits: final daily=${_dailyHabits.length}, weekly=${_weeklyHabits.length}');
-    });
+    } catch (e) {
+      print('Dashboard._loadSyncedHabits: error loading habits - $e');
+      // Fallback to local storage on error
+      final localHabits = await ChecklistService.instance.getSyncedDashboardHabits();
+      setState(() {
+        _dailyHabits = localHabits['daily']!.map((name) => HabitItem(name: name, completed: false)).toList();
+        _weeklyHabits = localHabits['weekly']!.map((name) => HabitItem(name: name, completed: false)).toList();
+      });
+    }
+  }
+
+  /// Sync current habits to Firestore
+  Future<void> _syncHabitsToFirestore() async {
+    try {
+      await FirebaseService.saveUserHabits(
+        dailyHabits: _dailyHabits.map((h) => h.name).toList(),
+        weeklyHabits: _weeklyHabits.map((h) => h.name).toList(),
+      );
+      print('Dashboard._syncHabitsToFirestore: synced habits to Firestore');
+    } catch (e) {
+      print('Dashboard._syncHabitsToFirestore: error syncing to Firestore - $e');
+    }
   }
 
   /// Load progress data for display
@@ -123,6 +152,17 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  /// NEW - Load scheduled habits for integration
+  Future<void> _loadScheduledHabits() async {
+    try {
+      // Sync scheduled habits from Firestore if needed
+      await HabitSchedulingService.instance.syncFromFirestore();
+      print('Dashboard._loadScheduledHabits: synced scheduled habits from Firestore');
+    } catch (e) {
+      print('Dashboard._loadScheduledHabits: error loading scheduled habits - $e');
+    }
+  }
+
   /// Handle habit completion with progress tracking
   Future<void> _onHabitCompleted(HabitItem habit, bool isCompleted) async {
     setState(() => habit.completed = isCompleted);
@@ -136,6 +176,14 @@ class _DashboardPageState extends State<DashboardPage> {
 
       // Record completion in progress service
       await ProgressService.instance.recordHabitCompletion(sunnahHabit.id);
+
+      // NEW - Update goal progress if this habit has a goal
+      try {
+        await HabitSchedulingService.instance.updateGoalProgress(sunnahHabit.id, 1);
+        print('Dashboard: Updated goal progress for ${habit.name}');
+      } catch (e) {
+        print('Dashboard: No goal found for ${habit.name} or error updating goal - $e');
+      }
 
       // Reload progress data to update UI
       await _loadProgressData();
@@ -218,6 +266,12 @@ Widget _buildDrawer(BuildContext context) => Drawer(
         onTap: () => _openLibrary(context),
       ),
       ListTile(
+        leading: const Icon(Icons.schedule),
+        title: const Text('Scheduled Habits'),
+        subtitle: const Text('Manage custom schedules and goals'),
+        onTap: () => _openScheduledHabits(context),
+      ),
+      ListTile(
         leading: const Icon(Icons.checklist_rtl),
         title: const Text('Today\'s Checklist'),
         onTap: () => _showTodaysChecklist(context),
@@ -278,6 +332,9 @@ Widget _buildDrawer(BuildContext context) => Drawer(
         subtitle: const Text('Clear all habit progress and start fresh'),
         onTap: () => _showResetProgressDialog(context),
       ),
+      const Divider(),
+      // Sign Out / Sign In
+      _buildAuthTile(context),
     ],
   ),
 );
@@ -299,6 +356,9 @@ Widget _buildDrawer(BuildContext context) => Drawer(
         _dailyHabits = res[0].map((n) => HabitItem(name: n)).toList();
         _weeklyHabits = res[1].map((n) => HabitItem(name: n)).toList();
       });
+
+      // Sync the updated habits to Firestore
+      await _syncHabitsToFirestore();
     }
   }
 
@@ -327,6 +387,144 @@ Widget _buildDrawer(BuildContext context) => Drawer(
 
     // Reload pending recommendations count when returning
     _loadPendingRecommendations();
+  }
+
+  /// NEW - Open scheduled habits management
+  Future<void> _openScheduledHabits(BuildContext context) async {
+    Navigator.pop(context); // Close drawer first
+
+    // For now, show a simple dialog with scheduled habits
+    // In a full implementation, this would navigate to a dedicated page
+    await _showScheduledHabitsDialog(context);
+  }
+
+  /// NEW - Show scheduled habits in a dialog
+  Future<void> _showScheduledHabitsDialog(BuildContext context) async {
+    try {
+      final scheduledHabits = await HabitSchedulingService.instance.getScheduledHabits();
+
+      if (!mounted) return;
+
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Scheduled Habits'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: scheduledHabits.isEmpty
+                ? const Text('No scheduled habits yet.\n\nLong press on any habit in the library to create a schedule.')
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: scheduledHabits.length,
+                    itemBuilder: (context, index) {
+                      final scheduledHabit = scheduledHabits[index];
+                      return ListTile(
+                        title: Text(scheduledHabit.habit.title),
+                        subtitle: Text(scheduledHabit.getDisplayStatus()),
+                        trailing: scheduledHabit.hasGoal
+                            ? Text(
+                                scheduledHabit.getProgressDescription() ?? '',
+                                style: const TextStyle(fontSize: 12),
+                              )
+                            : null,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.go('/habit-scheduling/${scheduledHabit.habit.id}');
+                        },
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading scheduled habits: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildAuthTile(BuildContext context) {
+    final currentUser = FirebaseService.currentUser;
+
+    if (currentUser != null) {
+      // User is signed in - show sign out option
+      return ListTile(
+        leading: const Icon(Icons.logout, color: Colors.red),
+        title: const Text('Sign Out'),
+        subtitle: Text('Signed in as: ${currentUser.email ?? currentUser.displayName ?? 'Unknown'}'),
+        onTap: () => _signOut(context),
+      );
+    } else {
+      // User is not signed in - show sign in option
+      return ListTile(
+        leading: const Icon(Icons.login, color: Colors.green),
+        title: const Text('Sign In'),
+        subtitle: const Text('Not signed in – Tap here to log in'),
+        onTap: () {
+          Navigator.pop(context); // Close drawer first
+          context.go('/auth');
+        },
+      );
+    }
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    Navigator.pop(context); // Close drawer first
+
+    // Show confirmation dialog
+    final shouldSignOut = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSignOut == true) {
+      try {
+        await FirebaseService.signOut();
+
+        // Clear only session-specific local flags (not onboarding completion)
+        // Onboarding completion is now stored in Firestore and tied to user account
+        // Local flags are kept for UI state consistency
+
+        if (mounted) {
+          context.go('/');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error signing out: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildBody() {

@@ -4,7 +4,11 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/checklist_item.dart';
+import '../models/habit_item.dart';
+import 'firebase_service.dart';
 import '../data/sample_habits.dart';
+import 'habit_scheduling_service.dart';
+import '../models/scheduled_habit.dart';
 
 /// Service for managing the daily checklist state and persistence
 class ChecklistService {
@@ -104,6 +108,57 @@ class ChecklistService {
   Future<List<ChecklistItem>> _generateNewChecklist() async {
     await initialize();
 
+    // NEW - Enhanced checklist generation with scheduled habits
+    return await _generateNewChecklistWithSchedules();
+  }
+
+  /// NEW - Enhanced checklist generation that includes scheduled habits
+  Future<List<ChecklistItem>> _generateNewChecklistWithSchedules() async {
+    await initialize();
+
+    final checklistItems = <ChecklistItem>[];
+
+    // 1. Get scheduled habits for today (highest priority)
+    try {
+      final todaysScheduledHabits = await HabitSchedulingService.instance.getTodaysScheduledHabits();
+
+      // Convert scheduled habits to checklist items with priority boost
+      for (final scheduledHabit in todaysScheduledHabits) {
+        final item = ChecklistItem.fromSunnahHabit(scheduledHabit.habit);
+        checklistItems.add(item);
+      }
+
+      print('ChecklistService: Added ${todaysScheduledHabits.length} scheduled habits to checklist');
+    } catch (e) {
+      print('ChecklistService: Error loading scheduled habits - $e');
+    }
+
+    // 2. Fill remaining slots with regular habits (if we have less than 3 items)
+    final remainingSlots = 3 - checklistItems.length;
+    if (remainingSlots > 0) {
+      final regularHabits = await _generateRegularHabits(remainingSlots, checklistItems);
+      checklistItems.addAll(regularHabits);
+    }
+
+    // 3. Sort by priority (scheduled habits already have boosted priority)
+    checklistItems.sort((a, b) => b.priority.compareTo(a.priority));
+
+    // 4. Ensure we have exactly 3 items (trim if necessary)
+    final finalItems = checklistItems.take(3).toList();
+
+    // Save to storage
+    await _saveChecklist(finalItems);
+
+    // Mark as generated for today
+    final todayString = _formatDate(DateTime.now());
+    await _prefs!.setString(_lastGeneratedKey, todayString);
+
+    print('ChecklistService: Generated checklist with ${finalItems.length} items');
+    return finalItems;
+  }
+
+  /// Generate regular habits for checklist (excluding already selected ones)
+  Future<List<ChecklistItem>> _generateRegularHabits(int count, List<ChecklistItem> existingItems) async {
     // Get or create user seed for consistent randomization
     int userSeed = _prefs!.getInt(_userSeedKey) ?? _generateUserSeed();
     await _prefs!.setInt(_userSeedKey, userSeed);
@@ -114,26 +169,22 @@ class ChecklistService {
     final dailySeed = userSeed + daysSinceEpoch;
     final random = Random(dailySeed);
 
-    // Filter available habits (exclude very low priority ones for better experience)
-    final availableHabits = sampleHabits.where((habit) => habit.priority >= 4).toList();
+    // Get IDs of already selected habits
+    final existingIds = existingItems.map((item) => item.id).toSet();
 
-    // Shuffle and take 3 unique habits
-    availableHabits.shuffle(random);
-    final selectedHabits = availableHabits.take(3).toList();
-
-    // Convert to checklist items
-    final checklistItems = selectedHabits
-        .map((habit) => ChecklistItem.fromSunnahHabit(habit))
+    // Filter available habits (exclude very low priority ones and already selected)
+    final availableHabits = sampleHabits
+        .where((habit) => habit.priority >= 4 && !existingIds.contains(habit.id))
         .toList();
 
-    // Save to storage
-    await _saveChecklist(checklistItems);
+    // Shuffle and take requested count
+    availableHabits.shuffle(random);
+    final selectedHabits = availableHabits.take(count).toList();
 
-    // Mark as generated for today
-    final todayString = _formatDate(today);
-    await _prefs!.setString(_lastGeneratedKey, todayString);
-
-    return checklistItems;
+    // Convert to checklist items
+    return selectedHabits
+        .map((habit) => ChecklistItem.fromSunnahHabit(habit))
+        .toList();
   }
 
   /// Load existing checklist from storage
@@ -223,9 +274,20 @@ class ChecklistService {
 
     print('ChecklistService.syncCompletedItemsToDashboard: new daily=${newDaily.length}, weekly=${newWeekly.length}');
 
-    // Save updated lists
+    // Save updated lists to local storage
     await _prefs!.setStringList('dashboard_daily_habits', newDaily.toList());
     await _prefs!.setStringList('dashboard_weekly_habits', newWeekly.toList());
+
+    // Also sync to Firestore
+    try {
+      await FirebaseService.saveUserHabits(
+        dailyHabits: newDaily.toList(),
+        weeklyHabits: newWeekly.toList(),
+      );
+      print('ChecklistService.syncCompletedItemsToDashboard: synced to Firestore');
+    } catch (e) {
+      print('ChecklistService.syncCompletedItemsToDashboard: error syncing to Firestore - $e');
+    }
 
     print('ChecklistService.syncCompletedItemsToDashboard: sync completed successfully');
   }
@@ -256,6 +318,18 @@ class ChecklistService {
     await _prefs!.remove(_onboardingCompletedKey);
     await _prefs!.remove('dashboard_daily_habits');
     await _prefs!.remove('dashboard_weekly_habits');
+
+    // Also clear user habits from Firestore
+    try {
+      await FirebaseService.saveUserHabits(
+        dailyHabits: [],
+        weeklyHabits: [],
+      );
+      print('ChecklistService.clearAllData: cleared Firestore habits');
+    } catch (e) {
+      print('ChecklistService.clearAllData: error clearing Firestore habits - $e');
+    }
+
     print('ChecklistService.clearAllData: all data cleared');
   }
 
@@ -283,5 +357,50 @@ class ChecklistService {
   /// Format date as YYYY-MM-DD string
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Add a habit to the user's habit list (for peer-to-peer coaching)
+  Future<void> addHabitToUserList(HabitItem habit, String category) async {
+    await initialize();
+
+    final key = category == 'daily' ? 'dashboard_daily_habits' : 'dashboard_weekly_habits';
+    final existingJson = _prefs!.getString(key);
+
+    List<HabitItem> existingHabits = [];
+    if (existingJson != null) {
+      final List<dynamic> decoded = jsonDecode(existingJson);
+      existingHabits = decoded.map((item) => HabitItem.fromJson(item)).toList();
+    }
+
+    // Check if habit already exists
+    final habitExists = existingHabits.any((h) => h.name == habit.name);
+    if (!habitExists) {
+      existingHabits.add(habit);
+      final updatedJson = jsonEncode(existingHabits.map((h) => h.toJson()).toList());
+      await _prefs!.setString(key, updatedJson);
+      print('ChecklistService.addHabitToUserList: added ${habit.name} to $category habits');
+    } else {
+      print('ChecklistService.addHabitToUserList: habit ${habit.name} already exists in $category habits');
+    }
+  }
+
+  /// NEW - Check if a habit is scheduled for today
+  Future<bool> isHabitScheduledForToday(String habitId) async {
+    try {
+      return await HabitSchedulingService.instance.isHabitScheduledForToday(habitId);
+    } catch (e) {
+      print('ChecklistService.isHabitScheduledForToday: Error checking schedule - $e');
+      return false;
+    }
+  }
+
+  /// NEW - Get scheduled habit information
+  Future<ScheduledHabit?> getScheduledHabit(String habitId) async {
+    try {
+      return await HabitSchedulingService.instance.getScheduledHabit(habitId);
+    } catch (e) {
+      print('ChecklistService.getScheduledHabit: Error getting scheduled habit - $e');
+      return null;
+    }
   }
 }

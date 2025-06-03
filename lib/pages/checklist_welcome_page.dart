@@ -1,29 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../services/user_flags_service.dart';
-import 'dashboard_page.dart';
 
-class ChecklistWelcomePage extends StatelessWidget {
+class ChecklistWelcomePage extends StatefulWidget {
   static const route = '/checklist-welcome';
 
   const ChecklistWelcomePage({super.key});
 
   @override
+  State<ChecklistWelcomePage> createState() => _ChecklistWelcomePageState();
+}
+
+class _ChecklistWelcomePageState extends State<ChecklistWelcomePage> {
+  Future<void> _goToDashboard({required bool showOverlay}) async {
+    // Mark prompt as seen so it never appears again.
+    await UserFlagsService.markChecklistPromptSeen();
+
+    // Use GoRouter for consistent navigation
+    if (mounted) {
+      if (showOverlay) {
+        // Navigate to dashboard with overlay parameter
+        context.go('/dashboard?showChecklist=true');
+      } else {
+        // Navigate to dashboard without overlay
+        context.go('/dashboard');
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-
-    Future<void> _goToDashboard({required bool showOverlay}) async {
-      // Mark prompt as seen so it never appears again.
-      await UserFlagsService.markChecklistPromptSeen();
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => DashboardPage(
-            // Pass a flag so Dashboard can immediately show the overlay.
-            initialChecklistOverlayVisible: showOverlay,
-          ),
-        ),
-      );
-    }
 
     return Scaffold(
       body: SafeArea(

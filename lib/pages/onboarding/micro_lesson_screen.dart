@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../services/checklist_service.dart';
 import '../../services/user_flags_service.dart';
-import '../checklist_welcome_page.dart';
-import '../dashboard_page.dart';
+import '../../services/firebase_service.dart';
 
 class MicroLessonScreen extends StatefulWidget {
   const MicroLessonScreen({super.key});
@@ -88,7 +88,6 @@ class _MicroLessonScreenState extends State<MicroLessonScreen>
   }
 
   void _nextPage() {
-    print('MicroLessonScreen._nextPage: currentPage=$_currentPage, totalPages=$_totalPages');
     if (_currentPage < _totalPages - 1) {
       _currentPage++;
       _pageController.nextPage(
@@ -103,42 +102,40 @@ class _MicroLessonScreenState extends State<MicroLessonScreen>
       _slideController.forward();
     } else {
       // Complete onboarding and show checklist
-      print('MicroLessonScreen._nextPage: reached last page, completing onboarding');
       _completeOnboarding();
     }
   }
 
   void _skipToQuestions() {
-    print('MicroLessonScreen._skipToQuestions: skip button pressed');
     _completeOnboarding();
   }
 
   Future<void> _completeOnboarding() async {
-    print('MicroLessonScreen._completeOnboarding: starting onboarding completion');
+    try {
+      // Mark onboarding as completed in Firestore (primary source of truth)
+      await FirebaseService.markOnboardingCompleted();
 
-    // Mark onboarding as completed
-    await ChecklistService.instance.markOnboardingCompleted();
+      // Also mark in local services for consistency with existing features
+      await UserFlagsService.markOnboardingCompleted();
+      await ChecklistService.instance.markOnboardingCompleted();
 
-    // Only show the welcome prompt if brand-new.
-    final seen = await UserFlagsService.hasSeenChecklistPrompt();
-    print('MicroLessonScreen._completeOnboarding: hasSeenChecklistPrompt=$seen');
+      // Only show the welcome prompt if brand-new.
+      final seen = await UserFlagsService.hasSeenChecklistPrompt();
 
-    if (mounted) {
-      print('MicroLessonScreen._completeOnboarding: widget is mounted, navigating...');
-      if (seen) {
-        print('MicroLessonScreen._completeOnboarding: navigating to DashboardPage');
-      } else {
-        print('MicroLessonScreen._completeOnboarding: navigating to ChecklistWelcomePage');
+      if (mounted) {
+        // Use GoRouter for consistent navigation
+        if (seen) {
+          context.go('/dashboard');
+        } else {
+          context.go('/checklist-welcome');
+        }
       }
-
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) =>
-              seen ? const DashboardPage() : const ChecklistWelcomePage(),
-        ),
-      );
-    } else {
-      print('MicroLessonScreen._completeOnboarding: widget not mounted, skipping navigation');
+    } catch (e) {
+      print('Error completing onboarding: $e');
+      // Fallback to dashboard if there's an error
+      if (mounted) {
+        context.go('/dashboard');
+      }
     }
   }
 

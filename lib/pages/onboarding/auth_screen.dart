@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/firebase_service.dart';
+import '../../services/user_flags_service.dart';
 import '../../theme/app_theme.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -18,12 +20,27 @@ class _AuthScreenState extends State<AuthScreen> {
 
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isSignUpMode = false; // Toggle between sign-in and sign-up
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  /// Navigate to appropriate screen after successful authentication
+  Future<void> _navigateAfterAuth() async {
+    // Check if user has completed onboarding (from Firestore)
+    final hasCompletedOnboarding = await FirebaseService.hasCompletedOnboarding();
+
+    if (hasCompletedOnboarding) {
+      // User has already completed onboarding, go to dashboard
+      context.go('/dashboard');
+    } else {
+      // User hasn't completed onboarding, start onboarding flow
+      context.go('/intro');
+    }
   }
 
   Future<void> _signInWithGoogle() async {
@@ -33,13 +50,30 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     try {
-      await FirebaseService.signInWithGoogle();
+      final userCredential = await FirebaseService.signInWithGoogle();
+
+      // Create user document in Firestore if it's a new user
+      if (userCredential.additionalUserInfo?.isNewUser == true) {
+        await FirebaseService.createUserDocument(userCredential.user!);
+      }
+
       if (mounted) {
-        context.go('/intro');
+        await _navigateAfterAuth();
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Google sign-in failed. Please try again.';
+        // Handle Firebase Auth exceptions and other errors
+        if (e is FirebaseAuthException) {
+          _errorMessage = e.message ?? 'Google sign-in failed. Please try again.';
+        } else if (e.toString().contains('Google sign-in configuration error')) {
+          _errorMessage = 'Google sign-in configuration error. Please ensure SHA1 fingerprint is added to Firebase Console. Try using email/password below.';
+        } else if (e.toString().contains('cancelled')) {
+          _errorMessage = 'Google sign-in was cancelled.';
+        } else if (e.toString().contains('network')) {
+          _errorMessage = 'Network error. Please check your connection and try again.';
+        } else {
+          _errorMessage = 'Google sign-in failed: ${e.toString()}. Try using email/password below.';
+        }
       });
     } finally {
       setState(() {
@@ -62,12 +96,69 @@ class _AuthScreenState extends State<AuthScreen> {
         _passwordController.text,
       );
 
+      // Ensure user document exists (for existing users who might not have one)
+      final currentUser = FirebaseService.currentUser;
+      if (currentUser != null) {
+        await FirebaseService.createUserDocument(currentUser);
+      }
+
       if (mounted) {
-        context.go('/intro');
+        await _navigateAfterAuth();
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Sign-in failed. Please check your credentials.';
+        // Provide more specific error messages
+        if (e.toString().contains('user-not-found')) {
+          _errorMessage = 'No account found with this email. Try creating an account.';
+        } else if (e.toString().contains('wrong-password')) {
+          _errorMessage = 'Incorrect password. Please try again.';
+        } else if (e.toString().contains('invalid-email')) {
+          _errorMessage = 'Invalid email address.';
+        } else {
+          _errorMessage = 'Sign-in failed: ${e.toString()}';
+        }
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _signUpWithEmailPassword() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final userCredential = await FirebaseService.createUserWithEmailAndPassword(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
+
+      // Create user document in Firestore
+      await FirebaseService.createUserDocument(userCredential.user!);
+
+      if (mounted) {
+        await _navigateAfterAuth();
+      }
+    } catch (e) {
+      setState(() {
+        // Handle Firebase Auth exceptions with improved messages
+        if (e is FirebaseAuthException) {
+          _errorMessage = e.message ?? 'Sign-up failed. Please try again.';
+        } else if (e.toString().contains('email-already-in-use')) {
+          _errorMessage = 'An account already exists with this email. Try signing in instead.';
+        } else if (e.toString().contains('weak-password')) {
+          _errorMessage = 'Password is too weak. Please choose a stronger password.';
+        } else if (e.toString().contains('invalid-email')) {
+          _errorMessage = 'Invalid email address.';
+        } else {
+          _errorMessage = 'Sign-up failed: ${e.toString()}';
+        }
       });
     } finally {
       setState(() {
@@ -89,29 +180,39 @@ class _AuthScreenState extends State<AuthScreen> {
         body: AppTheme.backgroundContainer(
           child: SafeArea(
             top: false, // Remove top padding to get closer to status bar
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24.0, 16.0, 24.0, 24.0), // Reduced top padding
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Back button positioned at the top
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: AppTheme.primaryTeal),
-                        onPressed: () => context.go('/'),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      const Spacer(),
-                    ],
-                  ),
+            child: SingleChildScrollView( // Prevent overflow
+              padding: EdgeInsets.fromLTRB(
+                24.0,
+                16.0,
+                24.0,
+                24.0 + MediaQuery.of(context).viewInsets.bottom
+              ), // Add keyboard padding
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.of(context).size.height -
+                    MediaQuery.of(context).padding.top -
+                    MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Back button positioned at the top
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back, color: AppTheme.primaryTeal),
+                          onPressed: () => context.go('/'),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        const Spacer(),
+                      ],
+                    ),
 
-                  const SizedBox(height: 8), // Small gap after back button
+                    const SizedBox(height: 8), // Small gap after back button
 
-                  // Form content
-                  Expanded(
-                    child: Form(
+                    // Form content
+                    Form(
                       key: _formKey,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -138,7 +239,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Welcome Back',
+                        _isSignUpMode ? 'Create Account' : 'Welcome Back',
                         style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: AppTheme.primaryTeal,
@@ -147,7 +248,9 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Continue your Sunnah journey',
+                        _isSignUpMode
+                          ? 'Start your Sunnah journey'
+                          : 'Continue your Sunnah journey',
                         style: TextStyle(
                           color: AppTheme.secondaryText,
                           fontSize: 16,
@@ -164,7 +267,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 ElevatedButton.icon(
                   onPressed: _isLoading ? null : _signInWithGoogle,
                   icon: const Icon(Icons.login, color: Colors.white),
-                  label: const Text('Sign in with Google'),
+                  label: Text(_isSignUpMode ? 'Sign up with Google' : 'Sign in with Google'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade600,
                     foregroundColor: Colors.white,
@@ -242,9 +345,11 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 const SizedBox(height: 24),
 
-                // Sign In button
+                // Sign In/Sign Up button
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _signInWithEmailPassword,
+                  onPressed: _isLoading
+                    ? null
+                    : (_isSignUpMode ? _signUpWithEmailPassword : _signInWithEmailPassword),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.teal,
                     foregroundColor: Colors.white,
@@ -262,9 +367,9 @@ class _AuthScreenState extends State<AuthScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Text(
-                          'Sign In',
-                          style: TextStyle(
+                      : Text(
+                          _isSignUpMode ? 'Create Account' : 'Sign In',
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
@@ -289,7 +394,37 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
+
+                // Toggle between Sign In and Sign Up
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _isSignUpMode
+                        ? 'Already have an account? '
+                        : 'Don\'t have an account? ',
+                      style: TextStyle(color: Colors.grey.shade600),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isSignUpMode = !_isSignUpMode;
+                          _errorMessage = null; // Clear any error messages
+                        });
+                      },
+                      child: Text(
+                        _isSignUpMode ? 'Sign In' : 'Create Account',
+                        style: TextStyle(
+                          color: Colors.teal.shade600,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
 
                 // Skip for now link
                 TextButton(
@@ -305,8 +440,8 @@ class _AuthScreenState extends State<AuthScreen> {
                         ],
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/progress_page.dart';
 import 'pages/onboarding/welcome_screen.dart';
@@ -19,7 +21,10 @@ import 'pages/onboarding/loading_screen.dart';
 import 'pages/onboarding/rich_comparison_screen.dart';
 import 'pages/inbox_page.dart';
 import 'pages/checklist_welcome_page.dart';
+import 'pages/habit_scheduling_page.dart';
 import 'services/firebase_service.dart';
+import 'services/user_flags_service.dart';
+import 'data/sample_habits.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,17 +35,41 @@ void main() async {
   // Initialize Firebase
   await FirebaseService.initialize();
 
-  // Only enable in debug mode
-  if (kDebugMode) {
-    debugPrintRebuildDirtyWidgets = true;
-    debugProfileBuildsEnabled = true;
-  }
+  // Debug mode configuration
+  // Note: Excessive debug logging disabled for performance
 
   runApp(const MyApp());
 }
 
 // GoRouter configuration
 final GoRouter _router = GoRouter(
+  refreshListenable: GoRouterRefreshStream(FirebaseService.authStateChanges),
+  redirect: (context, state) async {
+    // Only redirect from the root path to avoid infinite loops
+    if (state.fullPath != '/') {
+      return null; // No redirect needed for other paths
+    }
+
+    // Check if user is authenticated using the current user
+    // Note: This should be reliable after Firebase initialization
+    final currentUser = FirebaseService.currentUser;
+    final isAuthenticated = currentUser != null;
+
+    // Check if onboarding is completed (from Firestore)
+    final hasCompletedOnboarding = await FirebaseService.hasCompletedOnboarding();
+
+    // Routing logic:
+    if (isAuthenticated && hasCompletedOnboarding) {
+      // User is signed in and has completed onboarding → go to dashboard
+      return '/dashboard';
+    } else if (isAuthenticated && !hasCompletedOnboarding) {
+      // User is signed in but hasn't completed onboarding → continue onboarding
+      return '/intro';
+    } else {
+      // User is not signed in → start with welcome screen (no redirect)
+      return null;
+    }
+  },
   routes: [
     GoRoute(
       path: '/',
@@ -104,7 +133,10 @@ final GoRouter _router = GoRouter(
     ),
     GoRoute(
       path: '/dashboard',
-      builder: (context, state) => const DashboardPage(),
+      builder: (context, state) {
+        final showChecklist = state.uri.queryParameters['showChecklist'] == 'true';
+        return DashboardPage(initialChecklistOverlayVisible: showChecklist);
+      },
     ),
     GoRoute(
       path: '/progress',
@@ -113,6 +145,17 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/inbox',
       builder: (context, state) => const InboxPage(),
+    ),
+    GoRoute(
+      path: '/habit-scheduling/:habitId',
+      builder: (context, state) {
+        final habitId = state.pathParameters['habitId']!;
+        final habit = sampleHabits.firstWhere(
+          (h) => h.id == habitId,
+          orElse: () => throw Exception('Habit not found: $habitId'),
+        );
+        return HabitSchedulingPage(habit: habit);
+      },
     ),
   ],
 );
@@ -131,5 +174,25 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
     );
+  }
+}
+
+/// A [ChangeNotifier] that refreshes GoRouter when Firebase Auth state changes
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<User?> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen(
+      (User? user) {
+        notifyListeners();
+      },
+    );
+  }
+
+  late final StreamSubscription<User?> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
   }
 }

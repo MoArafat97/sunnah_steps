@@ -1,9 +1,11 @@
 // lib/pages/habit_library_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../data/sample_habits.dart';
 import '../models/habit_item.dart';
 import '../theme/app_theme.dart';
+import '../services/habit_scheduling_service.dart';
 
 class HabitLibraryPage extends StatefulWidget {
   final List<String> preselectedDaily;
@@ -173,25 +175,114 @@ class _HabitLibraryPageState extends State<HabitLibraryPage> {
   }
 
   Widget _buildTile(HabitItem h) {
+    // Find the corresponding SunnahHabit for scheduling functionality
+    final sunnahHabit = sampleHabits.firstWhere(
+      (habit) => habit.title == h.name,
+      orElse: () => sampleHabits.first,
+    );
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: AppTheme.enhancedCardDecoration,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        title: Text(
-          h.name,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            color: AppTheme.primaryText,
-          ),
-        ),
-        trailing: Switch(
-          value: h.completed,
-          onChanged: (v) => setState(() => h.completed = v),
-          activeColor: AppTheme.primaryTeal,
-        ),
+      child: FutureBuilder<bool>(
+        future: HabitSchedulingService.instance.isHabitScheduledForToday(sunnahHabit.id),
+        builder: (context, snapshot) {
+          final isScheduled = snapshot.data ?? false;
+
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    h.name,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.primaryText,
+                    ),
+                  ),
+                ),
+                if (isScheduled)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Scheduled',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.teal.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            subtitle: sunnahHabit.canBeScheduled
+                ? Text(
+                    'Long press to schedule',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  )
+                : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (sunnahHabit.canBeScheduled)
+                  IconButton(
+                    icon: Icon(
+                      isScheduled ? Icons.schedule : Icons.schedule_outlined,
+                      color: isScheduled ? Colors.teal.shade600 : Colors.grey.shade600,
+                      size: 20,
+                    ),
+                    onPressed: () => _openScheduling(sunnahHabit),
+                    tooltip: isScheduled ? 'Edit Schedule' : 'Create Schedule',
+                  ),
+                Switch(
+                  value: h.completed,
+                  onChanged: (v) => setState(() => h.completed = v),
+                  activeColor: AppTheme.primaryTeal,
+                ),
+              ],
+            ),
+            onLongPress: sunnahHabit.canBeScheduled
+                ? () => _openScheduling(sunnahHabit)
+                : null,
+          );
+        },
       ),
     );
+  }
+
+  /// NEW - Open habit scheduling page
+  Future<void> _openScheduling(dynamic sunnahHabit) async {
+    try {
+      final result = await context.push('/habit-scheduling/${sunnahHabit.id}');
+
+      // Refresh the UI if scheduling was successful
+      if (result == true && mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Schedule updated for ${sunnahHabit.title}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening scheduling: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

@@ -145,28 +145,25 @@ class _TodayChecklistOverlayState extends State<TodayChecklistOverlay>
                 ),
               ),
 
-              // Main content with top spacing
-              // Keep the overlay about 15% from the top, not 25%.
-              Column(
-                children: [
-                  SizedBox(height: MediaQuery.of(context).size.height * 0.15),
-                  Expanded(
-                    child: Center(
-                      child: AnimatedBuilder(
-                        animation: _cardController,
-                        builder: (context, child) {
-                          return Transform.translate(
-                            offset: Offset(0, 50 * _cardSlideAnimation.value),
-                            child: Opacity(
-                              opacity: _cardFadeAnimation.value,
-                              child: _buildChecklistCard(),
-                            ),
-                          );
-                        },
-                      ),
+              // Main content - properly centered
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _cardController,
+                      builder: (context, child) {
+                        return Transform.translate(
+                          offset: Offset(0, 50 * _cardSlideAnimation.value),
+                          child: Opacity(
+                            opacity: _cardFadeAnimation.value,
+                            child: _buildChecklistCard(),
+                          ),
+                        );
+                      },
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

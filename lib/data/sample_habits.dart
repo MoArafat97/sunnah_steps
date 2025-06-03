@@ -19,6 +19,8 @@ final List<SunnahHabit> sampleHabits = [
     benefits: 'Purifies the mouth, pleases Allah, earns extra reward for prayer.',
     tags: ['miswak', 'prayer', 'salah', 'oral hygiene', 'purification', 'sunnah', 'wudu'],
     category: 'occasional',
+    allowsScheduling: true,
+    suggestedDurations: ["7 days", "21 days", "40 days"],
   ),
   SunnahHabit(
     id: 'h22',
@@ -28,6 +30,8 @@ final List<SunnahHabit> sampleHabits = [
     benefits: 'Seeks Allah\'s protection and guidance when outside, angels are appointed to protect you.',
     tags: ['dua', 'supplication', 'leaving home', 'protection', 'trust in Allah', 'daily', 'dhikr'],
     category: 'daily',
+    allowsScheduling: true,
+    suggestedDurations: ["7 days", "30 days", "90 days"],
   ),
   SunnahHabit(
     id: 'h23',
