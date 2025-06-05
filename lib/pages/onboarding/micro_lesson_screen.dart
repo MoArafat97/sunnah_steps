@@ -112,6 +112,19 @@ class _MicroLessonScreenState extends State<MicroLessonScreen>
 
   Future<void> _completeOnboarding() async {
     try {
+      // Check if user is authenticated
+      final isAuthenticated = FirebaseService.isAuthenticated;
+      final canBypass = await UserFlagsService.canBypassSignup();
+
+      if (!isAuthenticated && !canBypass) {
+        // User is not authenticated and cannot bypass signup → redirect to signup
+        if (mounted) {
+          context.go('/signup');
+        }
+        return;
+      }
+
+      // User is authenticated or can bypass → complete onboarding normally
       // Mark onboarding as completed in Firestore (primary source of truth)
       await FirebaseService.markOnboardingCompleted();
 

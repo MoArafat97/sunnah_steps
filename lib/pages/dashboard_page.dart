@@ -1,7 +1,9 @@
 // lib/pages/dashboard_page.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/habit_item.dart';
 import '../data/sample_habits.dart';
 import 'habit_library_page.dart';
@@ -13,7 +15,6 @@ import '../services/firebase_service.dart';
 
 import '../models/streak_data.dart';
 import '../services/sunnah_coaching_service.dart';
-import '../services/habit_scheduling_service.dart';
 import '../pages/inbox_page.dart';
 import '../widgets/send_sunnah_dialog.dart';
 
@@ -28,7 +29,7 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  final String userName = "Aisha Zaman";
+  String _userName = "Assalamu 'Alaikum!"; // Default fallback
 
   // Persisted lists of HabitItems
   List<HabitItem> _dailyHabits = [];
@@ -54,58 +55,198 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    // Load user name from Firebase
+    _loadUserName();
     // Load synced habits from checklist
     _loadSyncedHabits();
     // Load progress data
     _loadProgressData();
     // Load pending recommendations count
     _loadPendingRecommendations();
-    // NEW - Load scheduled habits
-    _loadScheduledHabits();
 
     // Note: Checklist is now only shown from onboarding flow, not automatically on dashboard
     // Users can still access it manually from the drawer if needed
   }
 
+  /// Refresh habit completions (useful for testing and when app resumes)
+  Future<void> refreshHabitCompletions() async {
+    print('Dashboard.refreshHabitCompletions: Refreshing habit completion status');
+    try {
+      final completions = await FirebaseService.getHabitCompletions();
+      print('Dashboard.refreshHabitCompletions: Loaded ${completions.length} completions: $completions');
+
+      setState(() {
+        // Update completion status for existing habits
+        for (final habit in _dailyHabits) {
+          habit.completed = completions[habit.name] ?? false;
+        }
+        for (final habit in _weeklyHabits) {
+          habit.completed = completions[habit.name] ?? false;
+        }
+      });
+
+      print('Dashboard.refreshHabitCompletions: Updated habit completion status');
+    } catch (e) {
+      print('Dashboard.refreshHabitCompletions: Error refreshing completions - $e');
+    }
+  }
+
+  /// Save completion to local storage as fallback
+  Future<void> _saveCompletionToLocal(String habitName, bool isCompleted) async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now();
+    final dateKey = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final key = 'habit_completion_${dateKey}_$habitName';
+
+    await prefs.setBool(key, isCompleted);
+    print('Dashboard._saveCompletionToLocal: Saved $habitName: $isCompleted to local storage with key $key');
+  }
+
+  /// Load completions from local storage
+  Future<Map<String, bool>> _loadCompletionsFromLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now();
+    final dateKey = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+    final completions = <String, bool>{};
+    final allKeys = prefs.getKeys();
+
+    for (final key in allKeys) {
+      if (key.startsWith('habit_completion_$dateKey')) {
+        final habitName = key.replaceFirst('habit_completion_${dateKey}_', '');
+        final isCompleted = prefs.getBool(key) ?? false;
+        completions[habitName] = isCompleted;
+      }
+    }
+
+    print('Dashboard._loadCompletionsFromLocal: Loaded ${completions.length} completions from local storage: $completions');
+    return completions;
+  }
+
+  /// Load user name from Firebase Auth or Firestore
+  Future<void> _loadUserName() async {
+    try {
+      final currentUser = FirebaseService.currentUser;
+      if (currentUser != null) {
+        // Try to get name from Firebase Auth displayName first
+        String? userName = currentUser.displayName;
+
+        // If no displayName, try to get from Firestore
+        if (userName == null || userName.isEmpty) {
+          final userDoc = await FirebaseService.firestore
+              .collection('users')
+              .doc(currentUser.uid)
+              .get();
+
+          if (userDoc.exists) {
+            final data = userDoc.data() as Map<String, dynamic>;
+            userName = data['name'] ?? data['displayName'];
+          }
+        }
+
+        // Update state with the found name or keep default
+        if (userName != null && userName.isNotEmpty) {
+          setState(() {
+            _userName = userName!;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading user name: $e');
+      // Keep default fallback name
+    }
+  }
+
   /// Load habits from Firestore (primary) and local storage (fallback)
   Future<void> _loadSyncedHabits() async {
-    print('Dashboard._loadSyncedHabits: loading user habits');
+    print('Dashboard._loadSyncedHabits: Starting to load user habits');
 
     try {
+      // Check authentication first
+      final user = FirebaseService.currentUser;
+      if (user == null) {
+        print('Dashboard._loadSyncedHabits: No authenticated user, falling back to local storage');
+        await _loadFromLocalStorage();
+        return;
+      }
+
+      print('Dashboard._loadSyncedHabits: User authenticated (${user.uid}), loading from Firestore');
+
       // Try to load from Firestore first
       final firestoreHabits = await FirebaseService.getUserHabits();
 
       // If user has habits in Firestore, use those
       if (firestoreHabits['daily']!.isNotEmpty || firestoreHabits['weekly']!.isNotEmpty) {
-        print('Dashboard._loadSyncedHabits: loaded from Firestore - daily=${firestoreHabits['daily']?.length}, weekly=${firestoreHabits['weekly']?.length}');
+        print('Dashboard._loadSyncedHabits: Found habits in Firestore - daily=${firestoreHabits['daily']?.length}, weekly=${firestoreHabits['weekly']?.length}');
+
+        // Load habit completion status for today
+        print('Dashboard._loadSyncedHabits: Loading completion status for today...');
+        final completions = await FirebaseService.getHabitCompletions();
+        print('Dashboard._loadSyncedHabits: Loaded ${completions.length} completions: $completions');
+
         setState(() {
-          _dailyHabits = firestoreHabits['daily']!.map((name) => HabitItem(name: name, completed: false)).toList();
-          _weeklyHabits = firestoreHabits['weekly']!.map((name) => HabitItem(name: name, completed: false)).toList();
+          _dailyHabits = firestoreHabits['daily']!.map((name) =>
+            HabitItem(name: name, completed: completions[name] ?? false)).toList();
+          _weeklyHabits = firestoreHabits['weekly']!.map((name) =>
+            HabitItem(name: name, completed: completions[name] ?? false)).toList();
         });
+
+        print('Dashboard._loadSyncedHabits: Successfully loaded ${_dailyHabits.length} daily and ${_weeklyHabits.length} weekly habits');
         return;
       }
 
-      // Fallback to local storage for backward compatibility
-      final localHabits = await ChecklistService.instance.getSyncedDashboardHabits();
-      print('Dashboard._loadSyncedHabits: loaded from local storage - daily=${localHabits['daily']?.length}, weekly=${localHabits['weekly']?.length}');
-
-      setState(() {
-        _dailyHabits = localHabits['daily']!.map((name) => HabitItem(name: name, completed: false)).toList();
-        _weeklyHabits = localHabits['weekly']!.map((name) => HabitItem(name: name, completed: false)).toList();
-      });
-
-      // If we loaded from local storage, sync to Firestore
-      if (localHabits['daily']!.isNotEmpty || localHabits['weekly']!.isNotEmpty) {
-        await _syncHabitsToFirestore();
-      }
+      // No habits in Firestore, fallback to local storage
+      print('Dashboard._loadSyncedHabits: No habits in Firestore, falling back to local storage');
+      await _loadFromLocalStorage();
 
     } catch (e) {
-      print('Dashboard._loadSyncedHabits: error loading habits - $e');
+      print('Dashboard._loadSyncedHabits: Error loading from Firestore - $e');
       // Fallback to local storage on error
+      await _loadFromLocalStorage();
+    }
+  }
+
+  /// Load habits from local storage with completion status
+  Future<void> _loadFromLocalStorage() async {
+    try {
       final localHabits = await ChecklistService.instance.getSyncedDashboardHabits();
+      print('Dashboard._loadFromLocalStorage: Loaded from local storage - daily=${localHabits['daily']?.length}, weekly=${localHabits['weekly']?.length}');
+
+      // Try to load completions from Firestore first, then local storage
+      Map<String, bool> completions = {};
+      try {
+        completions = await FirebaseService.getHabitCompletions();
+        print('Dashboard._loadFromLocalStorage: Loaded ${completions.length} completions from Firestore');
+      } catch (completionError) {
+        print('Dashboard._loadFromLocalStorage: Could not load completions from Firestore - $completionError');
+        // Fallback to local storage completions
+        try {
+          completions = await _loadCompletionsFromLocal();
+          print('Dashboard._loadFromLocalStorage: Loaded ${completions.length} completions from local storage fallback');
+        } catch (localError) {
+          print('Dashboard._loadFromLocalStorage: Could not load completions from local storage either - $localError');
+        }
+      }
+
       setState(() {
-        _dailyHabits = localHabits['daily']!.map((name) => HabitItem(name: name, completed: false)).toList();
-        _weeklyHabits = localHabits['weekly']!.map((name) => HabitItem(name: name, completed: false)).toList();
+        _dailyHabits = localHabits['daily']!.map((name) =>
+          HabitItem(name: name, completed: completions[name] ?? false)).toList();
+        _weeklyHabits = localHabits['weekly']!.map((name) =>
+          HabitItem(name: name, completed: completions[name] ?? false)).toList();
+      });
+
+      // If we loaded from local storage and user is authenticated, sync to Firestore
+      if ((localHabits['daily']!.isNotEmpty || localHabits['weekly']!.isNotEmpty) &&
+          FirebaseService.currentUser != null) {
+        print('Dashboard._loadFromLocalStorage: Syncing local habits to Firestore');
+        await _syncHabitsToFirestore();
+      }
+    } catch (e) {
+      print('Dashboard._loadFromLocalStorage: Error loading from local storage - $e');
+      // Initialize with empty lists as last resort
+      setState(() {
+        _dailyHabits = [];
+        _weeklyHabits = [];
       });
     }
   }
@@ -152,20 +293,80 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  /// NEW - Load scheduled habits for integration
-  Future<void> _loadScheduledHabits() async {
-    try {
-      // Sync scheduled habits from Firestore if needed
-      await HabitSchedulingService.instance.syncFromFirestore();
-      print('Dashboard._loadScheduledHabits: synced scheduled habits from Firestore');
-    } catch (e) {
-      print('Dashboard._loadScheduledHabits: error loading scheduled habits - $e');
-    }
-  }
+
 
   /// Handle habit completion with progress tracking
   Future<void> _onHabitCompleted(HabitItem habit, bool isCompleted) async {
+    print('Dashboard._onHabitCompleted: ${habit.name} -> $isCompleted');
+
+    // Add haptic feedback for better UX - use lightImpact for completion
+    if (isCompleted) {
+      HapticFeedback.lightImpact();
+    } else {
+      HapticFeedback.selectionClick();
+    }
+
+    // Update local state immediately for smooth UX
     setState(() => habit.completed = isCompleted);
+
+    // Save completion status to Firestore with comprehensive error handling
+    try {
+      // Check if user is authenticated first
+      final user = FirebaseService.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated - cannot save completion');
+      }
+
+      print('Dashboard._onHabitCompleted: User authenticated (${user.uid}), saving to Firestore...');
+
+      await FirebaseService.saveHabitCompletion(
+        habitName: habit.name,
+        isCompleted: isCompleted,
+      );
+
+      print('Dashboard._onHabitCompleted: Successfully saved ${habit.name}: $isCompleted to Firestore');
+
+      // Show success feedback for completion
+      if (isCompleted && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ ${habit.name} saved successfully!'),
+            duration: const Duration(seconds: 1),
+            backgroundColor: Colors.green.shade600,
+          ),
+        );
+      }
+
+    } catch (e) {
+      print('Dashboard._onHabitCompleted: Error saving habit completion - $e');
+
+      // Show error feedback to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Failed to save ${habit.name}: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red.shade600,
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _onHabitCompleted(habit, isCompleted),
+            ),
+          ),
+        );
+      }
+
+      // Save to local storage as fallback
+      try {
+        await _saveCompletionToLocal(habit.name, isCompleted);
+        print('Dashboard._onHabitCompleted: Saved to local storage as fallback');
+      } catch (localError) {
+        print('Dashboard._onHabitCompleted: Failed to save to local storage too - $localError');
+      }
+
+      // Don't revert state if we have local fallback
+      return; // Don't proceed with other operations if Firestore save failed
+    }
 
     if (isCompleted) {
       // Find the corresponding SunnahHabit to get the ID
@@ -177,13 +378,19 @@ class _DashboardPageState extends State<DashboardPage> {
       // Record completion in progress service
       await ProgressService.instance.recordHabitCompletion(sunnahHabit.id);
 
-      // NEW - Update goal progress if this habit has a goal
-      try {
-        await HabitSchedulingService.instance.updateGoalProgress(sunnahHabit.id, 1);
-        print('Dashboard: Updated goal progress for ${habit.name}');
-      } catch (e) {
-        print('Dashboard: No goal found for ${habit.name} or error updating goal - $e');
+      // Show completion message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Habit completed! BarakAllahu feekum 🌸'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
+
+      // Note: We keep completed habits in the list to maintain accurate progress tracking
+      // The animation will show the completion state but habits remain for counting
 
       // Reload progress data to update UI
       await _loadProgressData();
@@ -222,7 +429,12 @@ class _DashboardPageState extends State<DashboardPage> {
           appBar: AppBar(
             title: const Text("Sunnah Steps"),
             actions: [
-              // Debug panel removed for production
+              // Refresh button for testing habit persistence
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: refreshHabitCompletions,
+                tooltip: 'Refresh Completions',
+              ),
             ],
           ),
           drawer: _buildDrawer(context),
@@ -247,9 +459,10 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
 Widget _buildDrawer(BuildContext context) => Drawer(
-  child: ListView(
-    padding: EdgeInsets.zero,
-    children: [
+  child: SafeArea(
+    child: SingleChildScrollView(
+      child: Column(
+        children: [
       const DrawerHeader(
         decoration: BoxDecoration(color: Colors.teal),
         child: Text('Sunnah Steps', style: TextStyle(color: Colors.white, fontSize: 24)),
@@ -264,12 +477,6 @@ Widget _buildDrawer(BuildContext context) => Drawer(
         leading: const Icon(Icons.list),
         title: const Text('Habit Library'),
         onTap: () => _openLibrary(context),
-      ),
-      ListTile(
-        leading: const Icon(Icons.schedule),
-        title: const Text('Scheduled Habits'),
-        subtitle: const Text('Manage custom schedules and goals'),
-        onTap: () => _openScheduledHabits(context),
       ),
       ListTile(
         leading: const Icon(Icons.checklist_rtl),
@@ -335,7 +542,12 @@ Widget _buildDrawer(BuildContext context) => Drawer(
       const Divider(),
       // Sign Out / Sign In
       _buildAuthTile(context),
-    ],
+
+      // Add bottom padding for safe area
+      const SizedBox(height: 16),
+        ],
+      ),
+    ),
   ),
 );
 
@@ -389,71 +601,7 @@ Widget _buildDrawer(BuildContext context) => Drawer(
     _loadPendingRecommendations();
   }
 
-  /// NEW - Open scheduled habits management
-  Future<void> _openScheduledHabits(BuildContext context) async {
-    Navigator.pop(context); // Close drawer first
 
-    // For now, show a simple dialog with scheduled habits
-    // In a full implementation, this would navigate to a dedicated page
-    await _showScheduledHabitsDialog(context);
-  }
-
-  /// NEW - Show scheduled habits in a dialog
-  Future<void> _showScheduledHabitsDialog(BuildContext context) async {
-    try {
-      final scheduledHabits = await HabitSchedulingService.instance.getScheduledHabits();
-
-      if (!mounted) return;
-
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Scheduled Habits'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: scheduledHabits.isEmpty
-                ? const Text('No scheduled habits yet.\n\nLong press on any habit in the library to create a schedule.')
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: scheduledHabits.length,
-                    itemBuilder: (context, index) {
-                      final scheduledHabit = scheduledHabits[index];
-                      return ListTile(
-                        title: Text(scheduledHabit.habit.title),
-                        subtitle: Text(scheduledHabit.getDisplayStatus()),
-                        trailing: scheduledHabit.hasGoal
-                            ? Text(
-                                scheduledHabit.getProgressDescription() ?? '',
-                                style: const TextStyle(fontSize: 12),
-                              )
-                            : null,
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          context.go('/habit-scheduling/${scheduledHabit.habit.id}');
-                        },
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading scheduled habits: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
   Widget _buildAuthTile(BuildContext context) {
     final currentUser = FirebaseService.currentUser;
@@ -535,7 +683,7 @@ Widget _buildDrawer(BuildContext context) => Drawer(
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Assalamu 'Alaikum, $userName!",
+        Text("Assalamu 'Alaikum, $_userName!",
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
 
@@ -618,52 +766,74 @@ Widget _buildChecklist(String title, List<HabitItem> items) {
         separatorBuilder: (_, __) => const Divider(),
         itemBuilder: (ctx, i) {
           final habit = items[i];
-          return ListTile(
-            title: Text(habit.name),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // SEND TO FRIEND button
-                IconButton(
-                  icon: const Icon(Icons.share, color: Colors.teal),
-                  onPressed: () async {
-                    await showSendSunnahDialog(
-                      context,
-                      habitId: habit.name,
-                      habitTitle: habit.name,
-                    );
-                  },
-                  tooltip: 'Send to Friend',
-                ),
-
-                // INFO button
-                IconButton(
-                  icon: const Icon(Icons.info_outline, color: Colors.blueGrey),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => HabitDetailPage(
-                          habit: habit,
-                          // you can look up the hadith & benefits from your sample_habits by name:
-                          hadithEnglish: sampleHabits.firstWhere((h) => h.title == habit.name).hadithEnglish,
-                          hadithArabic: sampleHabits.firstWhere((h) => h.title == habit.name).hadithArabic,
-                          benefits: sampleHabits.firstWhere((h) => h.title == habit.name).benefits,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                // COMPLETE toggle
-                IconButton(
-                  icon: Icon(
-                    habit.completed ? Icons.check_circle : Icons.radio_button_unchecked,
-                    color: habit.completed ? Colors.green : Colors.grey,
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 400),
+            curve: Curves.easeInOut,
+            transform: Matrix4.identity()
+              ..translate(habit.completed ? 10.0 : 0.0, 0.0, 0.0),
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 400),
+              opacity: habit.completed ? 0.7 : 1.0,
+              child: ListTile(
+                title: Text(
+                  habit.name,
+                  style: TextStyle(
+                    decoration: habit.completed ? TextDecoration.lineThrough : null,
+                    color: habit.completed ? Colors.grey : null,
                   ),
-                  onPressed: () => _onHabitCompleted(habit, !habit.completed),
                 ),
-              ],
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // SEND TO FRIEND button
+                    IconButton(
+                      icon: const Icon(Icons.share, color: Colors.teal),
+                      onPressed: () async {
+                        HapticFeedback.selectionClick();
+                        await showSendSunnahDialog(
+                          context,
+                          habitId: habit.name,
+                          habitTitle: habit.name,
+                        );
+                      },
+                      tooltip: 'Send to Friend',
+                    ),
+
+                    // INFO button
+                    IconButton(
+                      icon: const Icon(Icons.info_outline, color: Colors.blueGrey),
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => HabitDetailPage(
+                              habit: habit,
+                              // you can look up the hadith & benefits from your sample_habits by name:
+                              hadithEnglish: sampleHabits.firstWhere((h) => h.title == habit.name).hadithEnglish,
+                              hadithArabic: sampleHabits.firstWhere((h) => h.title == habit.name).hadithArabic,
+                              benefits: sampleHabits.firstWhere((h) => h.title == habit.name).benefits,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+
+                    // COMPLETE toggle
+                    AnimatedScale(
+                      duration: const Duration(milliseconds: 150),
+                      scale: habit.completed ? 1.2 : 1.0,
+                      child: IconButton(
+                        icon: Icon(
+                          habit.completed ? Icons.check_circle : Icons.radio_button_unchecked,
+                          color: habit.completed ? Colors.green : Colors.grey,
+                        ),
+                        onPressed: () => _onHabitCompleted(habit, !habit.completed),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
         },

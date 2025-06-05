@@ -163,6 +163,17 @@ class AppTheme {
     boxShadow: cardShadow,
   );
 
+  // Simple card decoration without gold border (for habit library)
+  static BoxDecoration get simpleCardDecoration => BoxDecoration(
+    color: cardBackground,
+    borderRadius: BorderRadius.circular(cardRadius),
+    border: Border.all(
+      color: Colors.grey.shade300,
+      width: 1.0,
+    ),
+    boxShadow: cardShadow,
+  );
+
   // Greeting text style (Islamic greeting)
   static const TextStyle greetingStyle = TextStyle(
     fontSize: 24,

@@ -205,6 +205,45 @@ class FirebaseService {
     }
   }
 
+  /// Create user document in Firestore with custom name
+  static Future<void> createUserDocumentWithName(User user, String name) async {
+    print('FirebaseService: Creating/updating user document with name for ${user.email} (UID: ${user.uid})');
+
+    final userDoc = firestore.collection('users').doc(user.uid);
+
+    try {
+      // Check if user document already exists
+      final docSnapshot = await userDoc.get();
+      if (!docSnapshot.exists) {
+        print('FirebaseService: User document does not exist, creating new one with name');
+        await userDoc.set({
+          'email': user.email?.toLowerCase(), // Normalize email for consistent lookups
+          'displayName': name, // Use provided name instead of user.displayName
+          'name': name, // Store name separately for easy access
+          'photoURL': user.photoURL,
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastLoginAt': FieldValue.serverTimestamp(),
+          'hasCompletedOnboarding': false, // Track onboarding completion in Firestore
+          'dailyHabits': [], // User's selected daily habits
+          'weeklyHabits': [], // User's selected weekly habits
+        });
+        print('FirebaseService: Successfully created new user document with name: $name');
+      } else {
+        print('FirebaseService: User document exists, updating with name and last login time');
+        // Update existing user with name and last login time
+        await userDoc.update({
+          'displayName': name,
+          'name': name,
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        });
+        print('FirebaseService: Successfully updated existing user document with name: $name');
+      }
+    } catch (e) {
+      print('FirebaseService: Error creating/updating user document with name for ${user.email}: $e');
+      rethrow;
+    }
+  }
+
   /// Check if current user has completed onboarding (from Firestore)
   static Future<bool> hasCompletedOnboarding() async {
     final user = currentUser;
@@ -277,6 +316,110 @@ class FirebaseService {
     } catch (e) {
       print('Error saving user habits: $e');
       rethrow;
+    }
+  }
+
+  /// Save habit completion status to Firestore
+  static Future<void> saveHabitCompletion({
+    required String habitName,
+    required bool isCompleted,
+    DateTime? date,
+  }) async {
+    final user = currentUser;
+    if (user == null) {
+      print('FirebaseService.saveHabitCompletion: No authenticated user');
+      throw Exception('User not authenticated');
+    }
+
+    final completionDate = date ?? DateTime.now();
+    // Use UTC to avoid timezone issues
+    final utcDate = DateTime.utc(completionDate.year, completionDate.month, completionDate.day);
+    final dateKey = '${utcDate.year}-${utcDate.month.toString().padLeft(2, '0')}-${utcDate.day.toString().padLeft(2, '0')}';
+
+    print('FirebaseService.saveHabitCompletion: Attempting to save $habitName: $isCompleted for date $dateKey');
+
+    try {
+      final docRef = firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('habit_completions')
+          .doc(dateKey);
+
+      final docSnapshot = await docRef.get();
+      Map<String, dynamic> completions = {};
+
+      if (docSnapshot.exists) {
+        completions = Map<String, dynamic>.from(docSnapshot.data() ?? {});
+        print('FirebaseService.saveHabitCompletion: Found existing completions for $dateKey: $completions');
+      } else {
+        print('FirebaseService.saveHabitCompletion: Creating new completion document for $dateKey');
+      }
+
+      completions[habitName] = isCompleted;
+      completions['lastUpdated'] = FieldValue.serverTimestamp();
+
+      await docRef.set(completions);
+      print('FirebaseService.saveHabitCompletion: Successfully saved $habitName: $isCompleted for $dateKey');
+
+      // Verify the save by reading it back
+      final verifySnapshot = await docRef.get();
+      if (verifySnapshot.exists) {
+        final verifyData = verifySnapshot.data() as Map<String, dynamic>;
+        print('FirebaseService.saveHabitCompletion: Verification - $habitName is ${verifyData[habitName]}');
+      }
+    } catch (e) {
+      print('FirebaseService.saveHabitCompletion: Error saving habit completion: $e');
+      rethrow;
+    }
+  }
+
+  /// Get habit completions for a specific date
+  static Future<Map<String, bool>> getHabitCompletions({DateTime? date}) async {
+    final user = currentUser;
+    if (user == null) {
+      print('FirebaseService.getHabitCompletions: No authenticated user');
+      return {};
+    }
+
+    final completionDate = date ?? DateTime.now();
+    // Use UTC to match the save format
+    final utcDate = DateTime.utc(completionDate.year, completionDate.month, completionDate.day);
+    final dateKey = '${utcDate.year}-${utcDate.month.toString().padLeft(2, '0')}-${utcDate.day.toString().padLeft(2, '0')}';
+
+    print('FirebaseService.getHabitCompletions: Loading completions for date $dateKey');
+
+    try {
+      final docSnapshot = await firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('habit_completions')
+          .doc(dateKey)
+          .get();
+
+      if (docSnapshot.exists) {
+        final data = Map<String, dynamic>.from(docSnapshot.data() ?? {});
+        data.remove('lastUpdated'); // Remove metadata
+
+        // Ensure all values are properly cast to bool
+        final completions = <String, bool>{};
+        for (final entry in data.entries) {
+          if (entry.value is bool) {
+            completions[entry.key] = entry.value as bool;
+          } else {
+            // Handle potential type conversion issues
+            completions[entry.key] = entry.value == true || entry.value == 'true';
+          }
+        }
+
+        print('FirebaseService.getHabitCompletions: Found ${completions.length} completions for $dateKey: $completions');
+        return completions;
+      }
+
+      print('FirebaseService.getHabitCompletions: No completions found for $dateKey');
+      return {};
+    } catch (e) {
+      print('FirebaseService.getHabitCompletions: Error getting habit completions: $e');
+      return {};
     }
   }
 
