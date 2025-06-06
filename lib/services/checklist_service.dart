@@ -225,11 +225,19 @@ class ChecklistService {
       items[itemIndex] = items[itemIndex].copyWith(isCompleted: isCompleted);
       await _saveChecklist(items);
 
-      // TODO: Replace with direct Firestore operations after removing Cloud Functions
-      // Optionally log completion to API
+      // Log completion to Firebase for persistence
       if (isCompleted) {
-        // API calls temporarily disabled - will be replaced with direct Firestore operations
-        print('Habit completion logged locally: $itemId');
+        try {
+          // Save to Firebase for cross-device sync
+          await FirebaseService.saveHabitCompletion(
+            habitName: itemId,
+            isCompleted: isCompleted,
+          );
+          print('ChecklistService: Habit completion saved to Firebase: $itemId');
+        } catch (e) {
+          print('ChecklistService: Failed to save to Firebase, keeping local state: $e');
+          // Continue with local state - Firebase sync will retry later
+        }
       }
     }
   }

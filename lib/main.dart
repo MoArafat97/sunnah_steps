@@ -6,9 +6,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/progress_page.dart';
-import 'pages/onboarding/welcome_screen.dart';
+import 'pages/onboarding/onboarding_flow.dart';
 import 'pages/onboarding/auth_screen.dart';
-import 'pages/onboarding/signup_screen.dart';
+// Removed separate signup screen - now integrated into auth screen
 import 'pages/onboarding/intro_screen.dart';
 import 'pages/onboarding/micro_lesson_screen.dart';
 import 'pages/onboarding/age_question_screen.dart';
@@ -85,16 +85,13 @@ final GoRouter _router = GoRouter(
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const WelcomeScreen(),
+      builder: (context, state) => const OnboardingFlow(),
     ),
     GoRoute(
       path: '/auth',
       builder: (context, state) => const AuthScreen(),
     ),
-    GoRoute(
-      path: '/signup',
-      builder: (context, state) => const SignupScreen(),
-    ),
+    // Removed separate signup route - now integrated into auth screen
     GoRoute(
       path: '/intro',
       builder: (context, state) => const IntroScreen(),

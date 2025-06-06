@@ -15,17 +15,31 @@ class AuthScreen extends StatefulWidget {
 
 class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _birthdayController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
   String? _errorMessage;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _agreeToTerms = false;
+  String? _selectedGender;
   bool _isSignUpMode = false; // Toggle between sign-in and sign-up
 
   @override
   void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
+    _birthdayController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -128,6 +142,13 @@ class _AuthScreenState extends State<AuthScreen> {
   Future<void> _signUpWithEmailPassword() async {
     if (!_formKey.currentState!.validate()) return;
 
+    if (!_agreeToTerms) {
+      setState(() {
+        _errorMessage = 'Please agree to the terms and services to continue';
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -139,8 +160,17 @@ class _AuthScreenState extends State<AuthScreen> {
         _passwordController.text,
       );
 
-      // Create user document in Firestore
-      await FirebaseService.createUserDocument(userCredential.user!);
+      // Combine first and last name for display name
+      final fullName = '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+
+      // Update the user's display name
+      await userCredential.user!.updateDisplayName(fullName);
+
+      // Create user document in Firestore with name
+      await FirebaseService.createUserDocumentWithName(
+        userCredential.user!,
+        fullName,
+      );
 
       if (mounted) {
         await _navigateAfterAuth();
@@ -163,6 +193,34 @@ class _AuthScreenState extends State<AuthScreen> {
     } finally {
       setState(() {
         _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _selectBirthday(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2000),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF8B4513),
+              onPrimary: Colors.white,
+              surface: Color(0xFFF5F3EE),
+              onSurface: Color(0xFF8B4513),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _birthdayController.text = '${picked.day}/${picked.month}/${picked.year}';
       });
     }
   }
@@ -251,7 +309,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         _isSignUpMode
                           ? 'Start your Sunnah journey'
                           : 'Continue your Sunnah journey',
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: AppTheme.secondaryText,
                           fontSize: 16,
                         ),
@@ -297,22 +355,166 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 const SizedBox(height: 24),
 
-                // Email field
+                // Dynamic form fields based on mode
+                if (_isSignUpMode) ...[
+                  // NEW SIGNUP DESIGN - First Name and Last Name (side by side)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _firstNameController,
+                          decoration: InputDecoration(
+                            labelText: 'First Name',
+                            labelStyle: TextStyle(
+                              fontFamily: 'Cairo',
+                              color: const Color(0xFF8B4513).withOpacity(0.7),
+                              fontSize: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF8B4513),
+                                width: 1,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF8B4513),
+                                width: 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF8B4513),
+                                width: 1.5,
+                              ),
+                            ),
+                            filled: false,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          ),
+                          style: const TextStyle(
+                            fontFamily: 'Cairo',
+                            color: Color(0xFF8B4513),
+                            fontSize: 16,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            if (value.trim().length < 2) {
+                              return 'Too short';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _lastNameController,
+                          decoration: InputDecoration(
+                            labelText: 'Last Name',
+                            labelStyle: TextStyle(
+                              fontFamily: 'Cairo',
+                              color: const Color(0xFF8B4513).withOpacity(0.7),
+                              fontSize: 14,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF8B4513),
+                                width: 1,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF8B4513),
+                                width: 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                color: Color(0xFF8B4513),
+                                width: 1.5,
+                              ),
+                            ),
+                            filled: false,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                          ),
+                          style: const TextStyle(
+                            fontFamily: 'Cairo',
+                            color: Color(0xFF8B4513),
+                            fontSize: 16,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            if (value.trim().length < 2) {
+                              return 'Too short';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+                ] else ...[
+                  // ORIGINAL SIGN IN DESIGN - Just email and password
+                ],
+
+                // Email field (for both modes)
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    labelText: 'Email',
+                    labelText: _isSignUpMode ? 'Email Address' : 'Email',
+                    labelStyle: _isSignUpMode ? TextStyle(
+                      fontFamily: 'Cairo',
+                      color: const Color(0xFF8B4513).withOpacity(0.7),
+                      fontSize: 14,
+                    ) : null,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(_isSignUpMode ? 8 : 12),
+                      borderSide: BorderSide(
+                        color: _isSignUpMode ? const Color(0xFF8B4513) : Colors.grey,
+                        width: 1,
+                      ),
                     ),
-                    prefixIcon: const Icon(Icons.email),
+                    enabledBorder: _isSignUpMode ? OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF8B4513),
+                        width: 1,
+                      ),
+                    ) : null,
+                    focusedBorder: _isSignUpMode ? OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF8B4513),
+                        width: 1.5,
+                      ),
+                    ) : null,
+                    prefixIcon: _isSignUpMode ? null : const Icon(Icons.email),
+                    filled: false,
+                    contentPadding: _isSignUpMode ? const EdgeInsets.symmetric(horizontal: 16, vertical: 16) : null,
                   ),
+                  style: _isSignUpMode ? const TextStyle(
+                    fontFamily: 'Cairo',
+                    color: Color(0xFF8B4513),
+                    fontSize: 16,
+                  ) : null,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your email';
                     }
-                    if (!value.contains('@')) {
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
                       return 'Please enter a valid email';
                     }
                     return null;
@@ -324,14 +526,56 @@ class _AuthScreenState extends State<AuthScreen> {
                 // Password field
                 TextFormField(
                   controller: _passwordController,
-                  obscureText: true,
+                  obscureText: _isSignUpMode ? _obscurePassword : true,
                   decoration: InputDecoration(
                     labelText: 'Password',
+                    labelStyle: _isSignUpMode ? TextStyle(
+                      fontFamily: 'Cairo',
+                      color: const Color(0xFF8B4513).withOpacity(0.7),
+                      fontSize: 14,
+                    ) : null,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(_isSignUpMode ? 8 : 12),
+                      borderSide: BorderSide(
+                        color: _isSignUpMode ? const Color(0xFF8B4513) : Colors.grey,
+                        width: 1,
+                      ),
                     ),
-                    prefixIcon: const Icon(Icons.lock),
+                    enabledBorder: _isSignUpMode ? OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF8B4513),
+                        width: 1,
+                      ),
+                    ) : null,
+                    focusedBorder: _isSignUpMode ? OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF8B4513),
+                        width: 1.5,
+                      ),
+                    ) : null,
+                    prefixIcon: _isSignUpMode ? null : const Icon(Icons.lock),
+                    suffixIcon: _isSignUpMode ? IconButton(
+                      icon: Icon(
+                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                        color: const Color(0xFF8B4513),
+                      ),
+                      onPressed: () {
+                        HapticFeedback.mediumImpact();
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
+                    ) : null,
+                    filled: false,
+                    contentPadding: _isSignUpMode ? const EdgeInsets.symmetric(horizontal: 16, vertical: 16) : null,
                   ),
+                  style: _isSignUpMode ? const TextStyle(
+                    fontFamily: 'Cairo',
+                    color: Color(0xFF8B4513),
+                    fontSize: 16,
+                  ) : null,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your password';
@@ -410,7 +654,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       onPressed: () {
                         setState(() {
                           _isSignUpMode = !_isSignUpMode;
-                          _errorMessage = null; // Clear any error messages
+                          _errorMessage = null;
                         });
                       },
                       child: Text(
@@ -437,6 +681,8 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                   ),
                 ),
+
+
                         ],
                       ),
                     ),
