@@ -52,43 +52,7 @@ jobs:
         name: flutter-test-results
         path: test_results.json
 
-  # Backend Tests (Node.js/Firebase Functions)
-  backend-test:
-    name: Backend Tests
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: functions/package-lock.json
-        
-    - name: Install backend dependencies
-      run: |
-        cd functions
-        npm ci
-        
-    - name: Run backend linting
-      run: |
-        cd functions
-        npm run lint
-        
-    - name: Run backend tests
-      run: |
-        cd functions
-        npm test -- --coverage
-        
-    - name: Upload backend coverage
-      uses: codecov/codecov-action@v3
-      with:
-        file: functions/coverage/lcov.info
-        flags: backend
-        name: backend-coverage
+
 
   # Integration Tests
   integration-test:
@@ -129,7 +93,7 @@ jobs:
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
-    needs: [flutter-test, backend-test]
+    needs: [flutter-test]
     
     steps:
     - name: Checkout code
@@ -248,54 +212,23 @@ jobs:
         echo "Generating performance report..."
         # Add performance report generation
 
-  # Deployment (only on main branch)
-  deploy:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    needs: [flutter-test, backend-test, integration-test, build-android]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js for Firebase
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        
-    - name: Install Firebase CLI
-      run: npm install -g firebase-tools
-      
-    - name: Deploy Firebase Functions
-      run: |
-        cd functions
-        npm ci
-        npm run build
-        firebase deploy --only functions --token ${{ secrets.FIREBASE_TOKEN }}
-      env:
-        FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        
-    - name: Deploy Firestore Rules
-      run: firebase deploy --only firestore:rules --token ${{ secrets.FIREBASE_TOKEN }}
-      env:
-        FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
 
   # Notification
   notify:
     name: Notify Results
     runs-on: ubuntu-latest
-    needs: [flutter-test, backend-test, integration-test, build-android]
+    needs: [flutter-test, integration-test, build-android]
     if: always()
     
     steps:
     - name: Notify success
-      if: ${{ needs.flutter-test.result == 'success' && needs.backend-test.result == 'success' }}
+      if: ${{ needs.flutter-test.result == 'success' && needs.integration-test.result == 'success' }}
       run: |
         echo "✅ All tests passed successfully!"
-        
+
     - name: Notify failure
-      if: ${{ needs.flutter-test.result == 'failure' || needs.backend-test.result == 'failure' }}
+      if: ${{ needs.flutter-test.result == 'failure' || needs.integration-test.result == 'failure' }}
       run: |
         echo "❌ Some tests failed. Please check the logs."
         exit 1

@@ -10,9 +10,8 @@
 
 ### **Files Secured:**
 - `lib/firebase_options.dart` - All Firebase configuration now uses environment variables
-- `functions/src/scripts/auth-and-seed.ts` - API keys now loaded from environment
-- `lib/services/api_service.dart` - Base URLs now environment-based
 - `lib/main.dart` - Environment loading added before Firebase initialization
+- **Note**: API service and Cloud Functions have been removed in favor of direct Firestore SDK access
 
 ## 🛠️ Implementation Details
 
@@ -39,15 +38,11 @@
 ```
 sunnah_steps/
 ├── .env                          # Flutter app environment variables
-├── functions/
-│   ├── .env                      # Backend environment variables
-│   └── src/scripts/
-│       └── auth-and-seed.ts      # Secured with environment variables
 ├── lib/
 │   ├── firebase_options.dart     # Uses environment variables
 │   ├── main.dart                 # Loads environment on startup
 │   └── services/
-│       └── api_service.dart      # Environment-based URLs
+│       └── firebase_service.dart # Direct Firestore SDK access
 └── pubspec.yaml                  # Includes .env as asset
 ```
 

@@ -28,6 +28,10 @@ class DebugService {
   /// Check if debug mode is enabled
   Future<bool> isDebugModeEnabled() async {
     await initialize();
+    // Only enable debug mode in debug builds, never in production
+    const bool isDebugBuild = !bool.fromEnvironment('dart.vm.product');
+    if (!isDebugBuild) return false;
+
     return _prefs!.getBool(_debugModeKey) ?? false;
   }
 

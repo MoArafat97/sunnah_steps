@@ -1,9 +1,11 @@
 // lib/pages/habit_library_page.dart
 
 import 'package:flutter/material.dart';
+
 import '../data/sample_habits.dart';
 import '../models/habit_item.dart';
 import '../theme/app_theme.dart';
+
 
 class HabitLibraryPage extends StatefulWidget {
   final List<String> preselectedDaily;
@@ -73,7 +75,7 @@ class _HabitLibraryPageState extends State<HabitLibraryPage> {
           child: Column(children: [
             // Enhanced search field
             Container(
-              decoration: AppTheme.enhancedCardDecoration,
+              decoration: AppTheme.simpleCardDecoration,
               child: TextField(
                 decoration: InputDecoration(
                   hintText: 'Search Sunnah habits...',
@@ -175,7 +177,7 @@ class _HabitLibraryPageState extends State<HabitLibraryPage> {
   Widget _buildTile(HabitItem h) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      decoration: AppTheme.enhancedCardDecoration,
+      decoration: AppTheme.simpleCardDecoration,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         title: Text(
@@ -194,4 +196,6 @@ class _HabitLibraryPageState extends State<HabitLibraryPage> {
       ),
     );
   }
+
+
 }

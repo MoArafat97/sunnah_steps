@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../widgets/today_checklist_overlay.dart';
 import '../../services/checklist_service.dart';
+import '../../services/user_flags_service.dart';
+import '../../services/firebase_service.dart';
 
 class MicroLessonScreen extends StatefulWidget {
   const MicroLessonScreen({super.key});
@@ -110,40 +111,41 @@ class _MicroLessonScreenState extends State<MicroLessonScreen>
   }
 
   Future<void> _completeOnboarding() async {
-    print('MicroLessonScreen._completeOnboarding: starting onboarding completion');
+    try {
+      // Check if user is authenticated
+      final isAuthenticated = FirebaseService.isAuthenticated;
+      final canBypass = await UserFlagsService.canBypassSignup();
 
-    // Mark onboarding as completed
-    await ChecklistService.instance.markOnboardingCompleted();
+      if (!isAuthenticated && !canBypass) {
+        // User is not authenticated and cannot bypass signup → redirect to signup
+        if (mounted) {
+          context.go('/signup');
+        }
+        return;
+      }
 
-    // Check if checklist should be shown after onboarding completion
-    final shouldShow = await ChecklistService.instance.shouldShowChecklistAfterOnboarding();
-    print('MicroLessonScreen._completeOnboarding: shouldShow=$shouldShow');
+      // User is authenticated or can bypass → complete onboarding normally
+      // Mark onboarding as completed in Firestore (primary source of truth)
+      await FirebaseService.markOnboardingCompleted();
 
-    if (shouldShow && mounted) {
-      print('MicroLessonScreen._completeOnboarding: showing checklist overlay');
-      // Show the checklist overlay
-      await showTodayChecklistOverlay(
-        context,
-        onComplete: () async {
-          print('MicroLessonScreen._completeOnboarding: checklist completed, marking post-onboarding as shown');
-          // Mark post-onboarding checklist as shown (separate from daily logic)
-          await ChecklistService.instance.markPostOnboardingChecklistShown();
-          if (mounted) {
-            context.go('/dashboard');
-          }
-        },
-        onSkip: () async {
-          print('MicroLessonScreen._completeOnboarding: checklist skipped, marking post-onboarding as shown');
-          // Mark post-onboarding checklist as shown (separate from daily logic)
-          await ChecklistService.instance.markPostOnboardingChecklistShown();
-          if (mounted) {
-            context.go('/dashboard');
-          }
-        },
-      );
-    } else {
-      print('MicroLessonScreen._completeOnboarding: checklist not needed, going directly to dashboard');
-      // Go directly to dashboard
+      // Also mark in local services for consistency with existing features
+      await UserFlagsService.markOnboardingCompleted();
+      await ChecklistService.instance.markOnboardingCompleted();
+
+      // Only show the welcome prompt if brand-new.
+      final seen = await UserFlagsService.hasSeenChecklistPrompt();
+
+      if (mounted) {
+        // Use GoRouter for consistent navigation
+        if (seen) {
+          context.go('/dashboard');
+        } else {
+          context.go('/checklist-welcome');
+        }
+      }
+    } catch (e) {
+      print('Error completing onboarding: $e');
+      // Fallback to dashboard if there's an error
       if (mounted) {
         context.go('/dashboard');
       }

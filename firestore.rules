@@ -2,10 +2,13 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only read/write their own user document
+    // Users can read all user documents (for email lookup) but only write their own
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
+      // Allow authenticated users to read any user document (needed for email lookup)
+      allow read: if request.auth != null;
+      // Only allow users to write to their own document
+      allow write: if request.auth != null && request.auth.uid == userId;
+
       // Users can only read/write their own completion log
       match /completion_log/{logId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -22,6 +25,25 @@ service cloud.firestore {
     match /bundles/{bundleId} {
       allow read: if request.auth != null;
       allow write: if false; // Only server can write
+    }
+
+    // Sent Sunnahs collection for peer-to-peer coaching
+    match /sent_sunnahs/{sunnahId} {
+      // Allow read access for authenticated users (both list and get)
+      allow read: if request.auth != null;
+
+      // Only authenticated users can create new recommendations with correct sender_id
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.sender_id;
+
+      // Only the recipient can update the status (accept/decline)
+      allow update: if request.auth != null &&
+        request.auth.uid == resource.data.recipient_id &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+
+      // Only the recipient can delete their recommendations
+      allow delete: if request.auth != null &&
+        request.auth.uid == resource.data.recipient_id;
     }
     
     // Deny all other access
