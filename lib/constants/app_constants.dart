@@ -147,6 +147,7 @@ class AppConstants {
 /// Route names for navigation
 class AppRoutes {
   static const String root = '/';
+  static const String readyCheck = '/ready-check';
   static const String auth = '/auth';
   static const String dashboard = '/dashboard';
   static const String progress = '/progress';

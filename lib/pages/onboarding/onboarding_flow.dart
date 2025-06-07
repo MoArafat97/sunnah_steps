@@ -43,11 +43,11 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
   void _handlePageChanged(int index) {
     if (index == 2 && !_hasNavigatedToAuth) {
-      // Seamless transition to auth screen with GoRouter
+      // Navigate to ReadyCheckPage instead of auth
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted && !_hasNavigatedToAuth) {
           _hasNavigatedToAuth = true;
-          context.go('/auth');
+          context.go('/ready-check');
         }
       });
     }
@@ -417,159 +417,151 @@ class _SunnahReclaimPageState extends State<_SunnahReclaimPage>
           scale: _entranceScale.value,
           child: Opacity(
             opacity: _entranceFade.value,
-            child: GestureDetector(
-              onPanUpdate: (details) {
-                // Detect upward swipe
-                if (details.delta.dy < -5) {
-                  _handleSwipeUp();
-                }
-              },
-              child: Container(
-                color: const Color(0xFFF5F3EE), // Solid cream background
-                child: SafeArea(
-                  child: RepaintBoundary(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Main text content with soft radial glow
-                        Expanded(
-                          child: Center(
-                            child: Container(
-                              // Soft radial light behind entire text block
-                              decoration: BoxDecoration(
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFFFFD580).withValues(alpha: 0.12),
-                                    blurRadius: 120,
-                                    spreadRadius: 60,
-                                    offset: Offset.zero,
+            child: Container(
+              color: const Color(0xFFF5F3EE), // Solid cream background
+              child: SafeArea(
+                child: RepaintBoundary(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Main text content with soft radial glow
+                      Expanded(
+                        child: Center(
+                          child: Container(
+                            // Soft radial light behind entire text block
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFFFD580).withValues(alpha: 0.12),
+                                  blurRadius: 120,
+                                  spreadRadius: 60,
+                                  offset: Offset.zero,
+                                ),
+                              ],
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Line 1: "IT'S TIME"
+                                  AnimatedBuilder(
+                                    animation: _line1Controller,
+                                    builder: (context, child) {
+                                      return Transform.scale(
+                                        scale: _line1Scale.value,
+                                        child: Text(
+                                          _displayedText1,
+                                          textAlign: TextAlign.center,
+                                          semanticsLabel: 'It\'s time',
+                                          style: TextStyle(
+                                            fontFamily: 'Cairo',
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF8B4513),
+                                            letterSpacing: 1.2,
+                                            height: 1.2,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+
+                                  const SizedBox(height: 16),
+
+                                  // Line 2: "TO RECLAIM"
+                                  AnimatedBuilder(
+                                    animation: _line2Controller,
+                                    builder: (context, child) {
+                                      return ImageFiltered(
+                                        imageFilter: ui.ImageFilter.blur(
+                                          sigmaX: _line2Blur.value,
+                                          sigmaY: _line2Blur.value,
+                                        ),
+                                        child: Text(
+                                          _displayedText2,
+                                          textAlign: TextAlign.center,
+                                          semanticsLabel: 'To reclaim',
+                                          style: TextStyle(
+                                            fontFamily: 'Cairo',
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF8B4513),
+                                            letterSpacing: 1.2,
+                                            height: 1.2,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+
+                                  const SizedBox(height: 16),
+
+                                  // Line 3: "THE SUNNAH" with enhanced pulsing golden glow
+                                  AnimatedBuilder(
+                                    animation: Listenable.merge([_line3Controller, _glowPulseController]),
+                                    builder: (context, child) {
+                                      final glowIntensity = _line3Glow.value * _glowPulse.value;
+                                      return Container(
+                                        decoration: BoxDecoration(
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: const Color(0xFFF5C518).withValues(alpha: 0.3 * _glowPulse.value),
+                                              blurRadius: glowIntensity,
+                                              spreadRadius: glowIntensity * 0.5,
+                                            ),
+                                          ],
+                                        ),
+                                        child: Text(
+                                          _displayedText3,
+                                          textAlign: TextAlign.center,
+                                          semanticsLabel: 'The Sunnah',
+                                          style: TextStyle(
+                                            fontFamily: 'Cairo',
+                                            fontSize: 32,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF8B4513),
+                                            letterSpacing: 1.2,
+                                            height: 1.2,
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ],
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    // Line 1: "IT'S TIME"
-                                    AnimatedBuilder(
-                                      animation: _line1Controller,
-                                      builder: (context, child) {
-                                        return Transform.scale(
-                                          scale: _line1Scale.value,
-                                          child: Text(
-                                            _displayedText1,
-                                            textAlign: TextAlign.center,
-                                            semanticsLabel: 'It\'s time',
-                                            style: TextStyle(
-                                              fontFamily: 'Cairo',
-                                              fontSize: 32,
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF8B4513),
-                                              letterSpacing: 1.2,
-                                              height: 1.2,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-
-                                    const SizedBox(height: 16),
-
-                                    // Line 2: "TO RECLAIM"
-                                    AnimatedBuilder(
-                                      animation: _line2Controller,
-                                      builder: (context, child) {
-                                        return ImageFiltered(
-                                          imageFilter: ui.ImageFilter.blur(
-                                            sigmaX: _line2Blur.value,
-                                            sigmaY: _line2Blur.value,
-                                          ),
-                                          child: Text(
-                                            _displayedText2,
-                                            textAlign: TextAlign.center,
-                                            semanticsLabel: 'To reclaim',
-                                            style: TextStyle(
-                                              fontFamily: 'Cairo',
-                                              fontSize: 32,
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF8B4513),
-                                              letterSpacing: 1.2,
-                                              height: 1.2,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-
-                                    const SizedBox(height: 16),
-
-                                    // Line 3: "THE SUNNAH" with enhanced pulsing golden glow
-                                    AnimatedBuilder(
-                                      animation: Listenable.merge([_line3Controller, _glowPulseController]),
-                                      builder: (context, child) {
-                                        final glowIntensity = _line3Glow.value * _glowPulse.value;
-                                        return Container(
-                                          decoration: BoxDecoration(
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: const Color(0xFFF5C518).withValues(alpha: 0.3 * _glowPulse.value),
-                                                blurRadius: glowIntensity,
-                                                spreadRadius: glowIntensity * 0.5,
-                                              ),
-                                            ],
-                                          ),
-                                          child: Text(
-                                            _displayedText3,
-                                            textAlign: TextAlign.center,
-                                            semanticsLabel: 'The Sunnah',
-                                            style: TextStyle(
-                                              fontFamily: 'Cairo',
-                                              fontSize: 32,
-                                              fontWeight: FontWeight.bold,
-                                              color: const Color(0xFF8B4513),
-                                              letterSpacing: 1.2,
-                                              height: 1.2,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
                               ),
                             ),
                           ),
                         ),
+                      ),
 
-                        // Enhanced "Are you ready?" with float and pulse
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 40.0),
-                          child: AnimatedBuilder(
-                            animation: Listenable.merge([_pulseController, _floatController]),
-                            builder: (context, child) {
-                              return Transform.translate(
-                                offset: Offset(0, _floatOffset.value),
-                                child: Opacity(
-                                  opacity: _pulseOpacity.value,
-                                  child: Text(
-                                    'Are you ready?',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontFamily: 'Cairo',
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: const Color(0xFF8B4513),
-                                      letterSpacing: 0.8,
-                                    ),
+                      // Enhanced "Are you ready?" with float and pulse
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 40.0),
+                        child: AnimatedBuilder(
+                          animation: Listenable.merge([_pulseController, _floatController]),
+                          builder: (context, child) {
+                            return Transform.translate(
+                              offset: Offset(0, _floatOffset.value),
+                              child: Opacity(
+                                opacity: _pulseOpacity.value,
+                                child: Text(
+                                  'Are you ready?',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'Cairo',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF8B4513),
+                                    letterSpacing: 0.8,
                                   ),
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            );
+                          },
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -578,11 +570,6 @@ class _SunnahReclaimPageState extends State<_SunnahReclaimPage>
         );
       },
     );
-  }
-
-  void _handleSwipeUp() {
-    // Use the callback to prevent double navigation
-    widget.onNavigateToAuth();
   }
 }
 
@@ -648,6 +635,8 @@ class _EnhancedTypewriterText extends StatelessWidget {
     );
   }
 }
+
+
 
 /// Page 3: Simple fade transition page
 class _StarFieldPage extends StatefulWidget {

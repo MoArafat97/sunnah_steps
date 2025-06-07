@@ -7,6 +7,7 @@ import 'pages/dashboard_page.dart';
 import 'pages/progress_page.dart';
 import 'pages/onboarding/onboarding_flow.dart';
 import 'pages/onboarding/auth_screen.dart';
+import 'pages/onboarding/ready_check_page.dart';
 import 'pages/inbox_page.dart';
 import 'pages/checklist_welcome_page.dart';
 import 'services/firebase_service.dart';
@@ -97,6 +98,23 @@ final GoRouter _router = GoRouter(
           child: OnboardingFlow(initialPage: initialPage),
         );
       },
+    ),
+    GoRoute(
+      path: '/ready-check',
+      pageBuilder: (context, state) => CustomTransitionPage<void>(
+        key: state.pageKey,
+        child: const ReadyCheckPage(),
+        transitionDuration: const Duration(milliseconds: 700),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return Container(
+            color: const Color(0xFFF5F3EE), // Ensure cream background during transition
+            child: FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+          );
+        },
+      ),
     ),
     GoRoute(
       path: '/auth',
