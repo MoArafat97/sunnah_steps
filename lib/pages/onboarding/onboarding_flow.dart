@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:ui' as ui;
 import '../../constants/app_colors.dart';
+import 'auth_screen.dart';
 
 /// Helper function to get the appropriate font family
 /// Returns 'Cairo' if available, otherwise uses system default
@@ -36,11 +37,21 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
   void _handlePageChanged(int index) {
     if (index == 2) {
-      // Delay so star-field plays ~1.5s before navigation
-      Future.delayed(const Duration(milliseconds: 1500), () {
+      // Seamless transition to auth screen with fade animation
+      Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
-          // Use GoRouter for navigation consistency
-          context.go('/auth');
+          Navigator.of(context).pushReplacement(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: const AuthScreen(),
+                );
+              },
+              transitionDuration: const Duration(milliseconds: 400),
+              settings: const RouteSettings(name: '/auth'),
+            ),
+          );
         }
       });
     }
@@ -564,145 +575,25 @@ class _SunnahReclaimPageState extends State<_SunnahReclaimPage>
   }
 
   void _handleSwipeUp() {
-    // Smooth transition to auth screen
-    Navigator.of(context).push(
+    // Seamless transition to auth screen with fade animation
+    Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) {
           return FadeTransition(
             opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0.0, 0.3),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOutCubic,
-              )),
-              child: Container(), // This will be replaced by GoRouter navigation
-            ),
+            child: const AuthScreen(),
           );
         },
-        transitionDuration: const Duration(milliseconds: 700),
+        transitionDuration: const Duration(milliseconds: 400),
+        settings: const RouteSettings(name: '/auth'),
       ),
-    ).then((_) {
-      // Use GoRouter for actual navigation
-      context.go('/auth');
-    });
+    );
   }
 }
 
-/// Enhanced typewriter animation widget with fade-in effects and precise styling
-class _EnhancedTypewriterText extends StatefulWidget {
+/// Simple static text widget to avoid animation controller issues
+class _EnhancedTypewriterText extends StatelessWidget {
   const _EnhancedTypewriterText();
-
-  @override
-  State<_EnhancedTypewriterText> createState() => _EnhancedTypewriterTextState();
-}
-
-class _EnhancedTypewriterTextState extends State<_EnhancedTypewriterText>
-    with TickerProviderStateMixin {
-  String _displayedText1 = '';
-  String _displayedText2 = '';
-  String _displayedText3 = '';
-
-  late AnimationController _fadeController1;
-  late AnimationController _fadeController2;
-  late AnimationController _fadeController3;
-
-  late Animation<double> _fadeAnimation1;
-  late Animation<double> _fadeAnimation2;
-  late Animation<double> _fadeAnimation3;
-
-  final String _text1 = 'IN A WORLD FULL OF...';
-  final String _text2 = 'DISTRACTIONS...';
-  final String _text3 = 'WE FORGET OUR FITRAH';
-
-  @override
-  void initState() {
-    super.initState();
-
-    // Initialize fade controllers
-    _fadeController1 = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
-    );
-    _fadeController2 = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
-    );
-    _fadeController3 = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
-    );
-
-    // Create fade animations
-    _fadeAnimation1 = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController1, curve: Curves.easeIn),
-    );
-    _fadeAnimation2 = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController2, curve: Curves.easeIn),
-    );
-    _fadeAnimation3 = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController3, curve: Curves.easeIn),
-    );
-
-    _startEnhancedTypewriterAnimation();
-  }
-
-  @override
-  void dispose() {
-    _fadeController1.dispose();
-    _fadeController2.dispose();
-    _fadeController3.dispose();
-    super.dispose();
-  }
-
-  void _startEnhancedTypewriterAnimation() async {
-    // Line 1: Fade in then typewriter (normal speed)
-    _fadeController1.forward();
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    for (int i = 0; i <= _text1.length; i++) {
-      if (mounted) {
-        setState(() {
-          _displayedText1 = _text1.substring(0, i);
-        });
-        await Future.delayed(const Duration(milliseconds: 80)); // Normal speed
-      }
-    }
-
-    // Delay before second line
-    await Future.delayed(const Duration(milliseconds: 400));
-
-    // Line 2: Fade in then typewriter (slightly faster)
-    _fadeController2.forward();
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    for (int i = 0; i <= _text2.length; i++) {
-      if (mounted) {
-        setState(() {
-          _displayedText2 = _text2.substring(0, i);
-        });
-        await Future.delayed(const Duration(milliseconds: 65)); // Slightly faster
-      }
-    }
-
-    // 600ms delay before third line as specified
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    // Line 3: Fade in then typewriter (normal speed)
-    _fadeController3.forward();
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    for (int i = 0; i <= _text3.length; i++) {
-      if (mounted) {
-        setState(() {
-          _displayedText3 = _text3.substring(0, i);
-        });
-        await Future.delayed(const Duration(milliseconds: 80)); // Normal speed
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -711,114 +602,113 @@ class _EnhancedTypewriterTextState extends State<_EnhancedTypewriterText>
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Line 1: "IN A WORLD FULL OF..." (20-22sp, Regular, Black)
-        AnimatedBuilder(
-          animation: _fadeAnimation1,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _fadeAnimation1.value,
-              child: SizedBox(
-                height: 32, // Fixed height for 20-22sp
-                child: Text(
-                  _displayedText1,
-                  textAlign: TextAlign.center,
-                  semanticsLabel: 'In a world full of distractions',
-                  style: TextStyle(
-                    fontFamily: _getFontFamily(),
-                    fontSize: 21, // 20-22sp
-                    fontWeight: FontWeight.w400, // Regular
-                    color: const Color(0xFF000000), // Black
-                    letterSpacing: 1.2,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            );
-          },
+        Text(
+          'IN A WORLD FULL OF...',
+          textAlign: TextAlign.center,
+          semanticsLabel: 'In a world full of distractions',
+          style: TextStyle(
+            fontFamily: _getFontFamily(),
+            fontSize: 21, // 20-22sp
+            fontWeight: FontWeight.w400, // Regular
+            color: const Color(0xFF000000), // Black
+            letterSpacing: 1.2,
+            height: 1.4,
+          ),
         ),
 
         const SizedBox(height: 16),
 
         // Line 2: "DISTRACTIONS..." (22-24sp, Medium, Brown)
-        AnimatedBuilder(
-          animation: _fadeAnimation2,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _fadeAnimation2.value,
-              child: SizedBox(
-                height: 36, // Fixed height for 22-24sp
-                child: Text(
-                  _displayedText2,
-                  textAlign: TextAlign.center,
-                  semanticsLabel: 'Distractions everywhere',
-                  style: TextStyle(
-                    fontFamily: _getFontFamily(),
-                    fontSize: 23, // 22-24sp
-                    fontWeight: FontWeight.w500, // Medium
-                    color: const Color(0xFF8B4513), // Brown
-                    letterSpacing: 1.2,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            );
-          },
+        Text(
+          'DISTRACTIONS...',
+          textAlign: TextAlign.center,
+          semanticsLabel: 'Distractions everywhere',
+          style: TextStyle(
+            fontFamily: _getFontFamily(),
+            fontSize: 23, // 22-24sp
+            fontWeight: FontWeight.w500, // Medium
+            color: const Color(0xFF8B4513), // Brown
+            letterSpacing: 1.2,
+            height: 1.4,
+          ),
         ),
 
         const SizedBox(height: 16),
 
         // Line 3: "WE FORGET OUR FITRAH" (26-28sp, Bold, Brown)
-        AnimatedBuilder(
-          animation: _fadeAnimation3,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _fadeAnimation3.value,
-              child: SizedBox(
-                height: 40, // Fixed height for 26-28sp
-                child: Text(
-                  _displayedText3,
-                  textAlign: TextAlign.center,
-                  semanticsLabel: 'We forget our natural state, our fitrah',
-                  style: TextStyle(
-                    fontFamily: _getFontFamily(),
-                    fontSize: 27, // 26-28sp
-                    fontWeight: FontWeight.w700, // Bold
-                    color: const Color(0xFF8B4513), // Brown
-                    letterSpacing: 1.2,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            );
-          },
+        Text(
+          'WE FORGET OUR FITRAH',
+          textAlign: TextAlign.center,
+          semanticsLabel: 'We forget our natural state, our fitrah',
+          style: TextStyle(
+            fontFamily: _getFontFamily(),
+            fontSize: 27, // 26-28sp
+            fontWeight: FontWeight.w700, // Bold
+            color: const Color(0xFF8B4513), // Brown
+            letterSpacing: 1.2,
+            height: 1.4,
+          ),
         ),
       ],
     );
   }
 }
 
-/// Page 3: Star-field transition page
-class _StarFieldPage extends StatelessWidget {
+/// Page 3: Simple fade transition page
+class _StarFieldPage extends StatefulWidget {
   const _StarFieldPage();
 
   @override
+  State<_StarFieldPage> createState() => _StarFieldPageState();
+}
+
+class _StarFieldPageState extends State<_StarFieldPage>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
+    );
+    _fadeController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.cream, // Use cream background instead of dark
-      child: Lottie.network(
-        'https://assets4.lottiefiles.com/packages/lf20_wWfU4o.json',
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          // Fallback if Lottie fails to load
-          return Container(
-            color: AppColors.cream, // Use cream background instead of dark
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _fadeAnimation.value,
+          child: Container(
+            color: const Color(0xFFF5F3EE), // Cream background
             child: const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primaryTeal,
+              child: Text(
+                'Welcome to your journey...',
+                style: TextStyle(
+                  fontFamily: 'Cairo',
+                  fontSize: 18,
+                  color: Color(0xFF8B4513),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }
