@@ -217,31 +217,45 @@ class _AuthScreenState extends State<AuthScreen> {
         statusBarIconBrightness: Brightness.dark,
         statusBarBrightness: Brightness.light,
       ),
-      child: Scaffold(
-        resizeToAvoidBottomInset: true,
-        backgroundColor: const Color(0xFFF5F3EE), // Same background as onboarding pages
-        body: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+      child: GestureDetector(
+        onPanUpdate: (details) {
+          // Detect downward swipe to go back to onboarding
+          if (details.delta.dy > 5) {
+            _handleSwipeDown();
+          }
+        },
+        child: Scaffold(
+          resizeToAvoidBottomInset: true,
+          backgroundColor: const Color(0xFFF5F3EE), // Same background as onboarding pages
+          body: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                 const SizedBox(height: 16),
 
-                // Back button
+                // Skip button (top right)
                 Row(
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Color(0xFF8B4513)),
+                    const Spacer(),
+                    TextButton(
                       onPressed: () {
                         HapticFeedback.mediumImpact();
-                        context.go('/');
+                        context.go('/dashboard');
                       },
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                      child: const Text(
+                        'SKIP',
+                        style: TextStyle(
+                          fontFamily: 'Cairo',
+                          fontSize: 14,
+                          color: Color(0xFF8B4513),
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                     ),
-                    const Spacer(),
                   ],
                 ),
 
@@ -410,7 +424,14 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
       ),
+      ),
     );
+  }
+
+  /// Handle swipe down gesture to go back to onboarding
+  void _handleSwipeDown() {
+    // Navigate back to the onboarding flow (specifically to page 2 - Sunnah Reclaim page)
+    context.go('/?page=1');
   }
 
   Widget _buildContinueButton() {
