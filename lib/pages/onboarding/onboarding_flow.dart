@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:lottie/lottie.dart';
-import 'package:go_router/go_router.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:go_router/go_router.dart';
 import 'dart:ui' as ui;
-import '../../constants/app_colors.dart';
-import 'auth_screen.dart';
 
 /// Helper function to get the appropriate font family
 /// Returns 'Cairo' if available, otherwise uses system default
@@ -20,15 +17,24 @@ String _getFontFamily() {
 /// 2. Sunnah Reclaim page (dramatic typewriter "IT'S TIME TO RECLAIM THE SUNNAH")
 /// 3. Star-field transition → auto-navigate to AuthScreen
 class OnboardingFlow extends StatefulWidget {
-  const OnboardingFlow({super.key});
-  
+  final int initialPage;
+
+  const OnboardingFlow({super.key, this.initialPage = 0});
+
   @override
   State<OnboardingFlow> createState() => _OnboardingFlowState();
 }
 
 class _OnboardingFlowState extends State<OnboardingFlow> {
-  final PageController _controller = PageController();
-  
+  late PageController _controller;
+  bool _hasNavigatedToAuth = false; // Flag to prevent double navigation
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController(initialPage: widget.initialPage);
+  }
+
   @override
   void dispose() {
     _controller.dispose();
@@ -36,38 +42,36 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   }
 
   void _handlePageChanged(int index) {
-    if (index == 2) {
-      // Seamless transition to auth screen with fade animation
+    if (index == 2 && !_hasNavigatedToAuth) {
+      // Seamless transition to auth screen with GoRouter
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: const AuthScreen(),
-                );
-              },
-              transitionDuration: const Duration(milliseconds: 400),
-              settings: const RouteSettings(name: '/auth'),
-            ),
-          );
+        if (mounted && !_hasNavigatedToAuth) {
+          _hasNavigatedToAuth = true;
+          context.go('/auth');
         }
       });
+    }
+  }
+
+  void _navigateToAuth() {
+    if (!_hasNavigatedToAuth) {
+      _hasNavigatedToAuth = true;
+      context.go('/auth');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F3EE), // Ensure cream background for entire scaffold
       body: PageView(
         controller: _controller,
         scrollDirection: Axis.vertical,
         onPageChanged: _handlePageChanged,
-        children: const [
-          _CreamIntroPage(),
-          _SunnahReclaimPage(),
-          _StarFieldPage(),
+        children: [
+          const _CreamIntroPage(),
+          _SunnahReclaimPage(onNavigateToAuth: _navigateToAuth),
+          const _StarFieldPage(),
         ],
       ),
     );
@@ -188,7 +192,9 @@ class _CreamIntroPageState extends State<_CreamIntroPage>
 
 /// Page 2: Dramatic spiritual message with typewriter effects
 class _SunnahReclaimPage extends StatefulWidget {
-  const _SunnahReclaimPage();
+  final VoidCallback onNavigateToAuth;
+
+  const _SunnahReclaimPage({required this.onNavigateToAuth});
 
   @override
   State<_SunnahReclaimPage> createState() => _SunnahReclaimPageState();
@@ -575,19 +581,8 @@ class _SunnahReclaimPageState extends State<_SunnahReclaimPage>
   }
 
   void _handleSwipeUp() {
-    // Seamless transition to auth screen with fade animation
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return FadeTransition(
-            opacity: animation,
-            child: const AuthScreen(),
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 400),
-        settings: const RouteSettings(name: '/auth'),
-      ),
-    );
+    // Use the callback to prevent double navigation
+    widget.onNavigateToAuth();
   }
 }
 

@@ -148,24 +148,10 @@ class AppConstants {
 class AppRoutes {
   static const String root = '/';
   static const String auth = '/auth';
-  static const String intro = '/intro';
   static const String dashboard = '/dashboard';
   static const String progress = '/progress';
   static const String inbox = '/inbox';
   static const String checklistWelcome = '/checklist-welcome';
-  
-  // Onboarding routes
-  static const String onboardingMicroLessons = '/onboarding/micro-lessons';
-  static const String onboardingAge = '/onboarding/age';
-  static const String onboardingCloseness = '/onboarding/closeness';
-  static const String onboardingStruggle = '/onboarding/struggle';
-  static const String onboardingFrequency = '/onboarding/frequency';
-  static const String onboardingFrequencyLimited = '/onboarding/frequency_limited';
-  static const String onboardingFrequencyHigh = '/onboarding/frequency_high';
-  static const String onboardingGender = '/onboarding/gender';
-  static const String onboardingComparison = '/onboarding/comparison';
-  static const String onboardingRichComparisonLoading = '/onboarding/rich-comparison/loading';
-  static const String onboardingRichComparison = '/onboarding/rich-comparison';
 }
 
 /// API endpoints and configuration

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,18 +7,6 @@ import 'pages/dashboard_page.dart';
 import 'pages/progress_page.dart';
 import 'pages/onboarding/onboarding_flow.dart';
 import 'pages/onboarding/auth_screen.dart';
-// Removed separate signup screen - now integrated into auth screen
-import 'pages/onboarding/intro_screen.dart';
-import 'pages/onboarding/micro_lesson_screen.dart';
-import 'pages/onboarding/age_question_screen.dart';
-import 'pages/onboarding/closeness_question_screen.dart';
-import 'pages/onboarding/struggle_question_screen.dart';
-import 'pages/onboarding/frequency_question_screen.dart';
-import 'pages/onboarding/limited_frequency_screen.dart';
-import 'pages/onboarding/high_frequency_screen.dart';
-import 'pages/onboarding/gender_question_screen.dart';
-import 'pages/onboarding/loading_screen.dart';
-import 'pages/onboarding/rich_comparison_screen.dart';
 import 'pages/inbox_page.dart';
 import 'pages/checklist_welcome_page.dart';
 import 'services/firebase_service.dart';
@@ -59,7 +46,7 @@ final GoRouter _router = GoRouter(
     if (state.fullPath == '/dashboard') {
       if (!isAuthenticated && !canBypass) {
         // Block dashboard access for unauthenticated users who can't bypass
-        return '/signup';
+        return '/auth';
       }
       // Allow access if authenticated or can bypass
       return null;
@@ -74,71 +61,59 @@ final GoRouter _router = GoRouter(
     if (isAuthenticated && hasCompletedOnboarding) {
       // User is signed in and has completed onboarding → go to dashboard
       return '/dashboard';
-    } else if (isAuthenticated && !hasCompletedOnboarding) {
-      // User is signed in but hasn't completed onboarding → continue onboarding
-      return '/intro';
     } else {
-      // User is not signed in → start with welcome screen (no redirect)
+      // User is not signed in or hasn't completed onboarding → start with welcome screen (no redirect)
       return null;
     }
   },
   routes: [
     GoRoute(
       path: '/',
-      builder: (context, state) => const OnboardingFlow(),
+      pageBuilder: (context, state) {
+        final pageParam = state.uri.queryParameters['page'];
+        final initialPage = pageParam != null ? int.tryParse(pageParam) ?? 0 : 0;
+
+        // Add fade transition when navigating back from auth
+        if (initialPage > 0) {
+          return CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: OnboardingFlow(initialPage: initialPage),
+            transitionDuration: const Duration(milliseconds: 700),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return Container(
+                color: const Color(0xFFF5F3EE), // Ensure cream background during transition
+                child: FadeTransition(
+                  opacity: animation,
+                  child: child,
+                ),
+              );
+            },
+          );
+        }
+
+        // Default behavior for initial load
+        return MaterialPage(
+          key: state.pageKey,
+          child: OnboardingFlow(initialPage: initialPage),
+        );
+      },
     ),
     GoRoute(
       path: '/auth',
-      builder: (context, state) => const AuthScreen(),
-    ),
-    // Removed separate signup route - now integrated into auth screen
-    GoRoute(
-      path: '/intro',
-      builder: (context, state) => const IntroScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/micro-lessons',
-      builder: (context, state) => const MicroLessonScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/age',
-      builder: (context, state) => const AgeQuestionScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/closeness',
-      builder: (context, state) => const ClosenessQuestionScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/struggle',
-      builder: (context, state) => const StruggleQuestionScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/frequency',
-      builder: (context, state) => const FrequencyQuestionScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/frequency_limited',
-      builder: (context, state) => const LimitedFrequencyScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/frequency_high',
-      builder: (context, state) => const HighFrequencyScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/gender',
-      builder: (context, state) => const GenderQuestionScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/comparison',
-      builder: (context, state) => const LoadingScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/rich-comparison/loading',
-      builder: (context, state) => const LoadingScreen(),
-    ),
-    GoRoute(
-      path: '/onboarding/rich-comparison',
-      builder: (context, state) => const RichComparisonScreen(),
+      pageBuilder: (context, state) => CustomTransitionPage<void>(
+        key: state.pageKey,
+        child: const AuthScreen(),
+        transitionDuration: const Duration(milliseconds: 700),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return Container(
+            color: const Color(0xFFF5F3EE), // Ensure cream background during transition
+            child: FadeTransition(
+              opacity: animation,
+              child: child,
+            ),
+          );
+        },
+      ),
     ),
     GoRoute(
       path: '/checklist-welcome',
